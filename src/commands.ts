@@ -136,17 +136,18 @@ function steps(session: Session): Step[] {
   return session.steps;
 }
 
-function nextStep(session: Session): Reply[] {
+/** The next thing to do, as a sentence. Shared by the text command and the voice tool. */
+export function nextStepText(session: Session): string {
   const all = steps(session);
   const step = all.find((s) => !s.done);
-  if (!step) return text(ALL_DONE);
-  return text(stepLine(step, all.length));
+  return step ? stepLine(step, all.length) : ALL_DONE;
 }
 
-function markDone(session: Session): Reply[] {
+/** Claims the current step and hands over the next one. */
+export function markDoneText(session: Session): string {
   const all = steps(session);
   const step = all.find((s) => !s.done);
-  if (!step) return text(ALL_DONE);
+  if (!step) return ALL_DONE;
 
   step.done = true;
   const item = session.items.find((i) => i.id === step.itemId);
@@ -156,13 +157,14 @@ function markDone(session: Session): Reply[] {
   const finished = all.filter((s) => s.done).length;
   const remaining = all.find((s) => !s.done);
   const progress = `Nice — ${finished} of ${all.length} done.`;
-  return text(remaining ? `${progress}\n${stepLine(remaining, all.length)}` : `${progress}\n${ALL_DONE}`);
+  return remaining ? `${progress}\n${stepLine(remaining, all.length)}` : `${progress}\n${ALL_DONE}`;
 }
 
-function zoneFull(session: Session, letter: string): Reply[] {
+/** FR-PLAN-07, as a sentence: re-plan out of a full bin and say what moved. */
+export function zoneFullText(session: Session, letter: string): string {
   const zoneId = letter.toUpperCase();
   const zone = session.zones.find((z) => z.id === zoneId);
-  if (!zone) return text(`I don't have a ${zoneId} in this photo.`);
+  if (!zone) return `I don't have a ${zoneId} in this photo.`;
 
   const all = steps(session);
   const doneItems = new Set(all.filter((s) => s.done).map((s) => s.itemId));
@@ -170,7 +172,7 @@ function zoneFull(session: Session, letter: string): Reply[] {
   const { moved, to } = replanAwayFrom(session.items, zones, zoneId, (id) => doneItems.has(id));
 
   zone.full = true;
-  if (moved.length === 0) return text(`Nothing left to move out of ${zoneId} ${zone.label}.`);
+  if (moved.length === 0) return `Nothing left to move out of ${zoneId} ${zone.label}.`;
 
   // Rebuild only the steps that aren't done, so finished work keeps its place in the list.
   const movedIds = new Set(moved.map((i) => i.id));
@@ -182,13 +184,7 @@ function zoneFull(session: Session, letter: string): Reply[] {
 
   const what = moved.map((i) => `${i.id} ${i.label}`).join(", ");
   const where = to.id === "desk" ? "left on the desk" : `moved to ${zoneName(zones, to.id)}`;
-  return text([`${zoneId} ${zone.label} is full — ${what} ${where}.`, "", nextStepText(session)].join("\n"));
-}
-
-function nextStepText(session: Session): string {
-  const all = session.steps;
-  const step = all.find((s) => !s.done);
-  return step ? stepLine(step, all.length) : ALL_DONE;
+  return [`${zoneId} ${zone.label} is full — ${what} ${where}.`, "", nextStepText(session)].join("\n");
 }
 
 // "3 is a power bank", "number 3 is actually my calculator", "3 = mug".
@@ -280,11 +276,11 @@ export function handleCommand(session: Session, raw: string): Reply[] | undefine
   // Step-by-step guidance, only once a plan exists. "done" and "next" are ordinary words
   // everywhere else, so outside this phase they go to the handler untouched.
   if (session.phase === "planned") {
-    if (NEXT_WORDS.has(t)) return nextStep(session);
-    if (DONE_WORDS.has(t)) return markDone(session);
+    if (NEXT_WORDS.has(t)) return text(nextStepText(session));
+    if (DONE_WORDS.has(t)) return text(markDoneText(session));
 
     const full = FULL_RE.exec(t);
-    if (full) return zoneFull(session, full[1]!);
+    if (full) return text(zoneFullText(session, full[1]!));
   }
 
   // "3 is a power bank" — only once there are numbered items to correct.
