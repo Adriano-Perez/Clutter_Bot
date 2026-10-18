@@ -27,13 +27,18 @@ export async function sendPreview(
   groups: readonly PlanGroup[],
   zones: readonly ZoneRef[],
   send: InboundMessage["send"],
+  isCurrent: () => boolean = () => true,
 ): Promise<boolean> {
   if (!previewEnabled() || !beforePhoto || groups.length === 0) return false;
 
   try {
     const photo = await normalizePhoto(await readFile(beforePhoto), { maxSide: PREVIEW_MAX_SIDE });
-    const { png, ms } = await editImage(photo.buf, previewPrompt(groups, zones), { timeoutMs: TIMEOUT_MS });
+    const { png, ms } = await editImage(photo.buf, `${previewPrompt(groups, zones)} Box coordinates refer to pixels in this ${photo.width} by ${photo.height} image.`, { timeoutMs: TIMEOUT_MS });
 
+    if (!isCurrent()) {
+      console.log("preview: skipped because the session or plan changed");
+      return false;
+    }
     const { dir, name } = path.parse(beforePhoto);
     const file = path.join(dir, `${name}.preview.png`);
     await writeFile(file, png);

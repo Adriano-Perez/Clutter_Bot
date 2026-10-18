@@ -11,7 +11,7 @@ const DETECTION_FAILED = "Sorry, I couldn't read that photo. Try sending it agai
 export const awaitingPhoto: PhaseHandler = async (session, msg) => {
   const { content } = msg;
   if (content.type !== "attachment" || !content.mimeType.startsWith("image/"))
-    return [{ type: "text", text: "Send me a photo of your desk to get started." }];
+    return [{ type: "text", text: "Send me a photo of your room or desk to get started." }];
 
   const file = await savePhoto(await content.read(), content.mimeType, msg.sender);
   console.log(`handler: saved ${path.relative(process.cwd(), file)}`);

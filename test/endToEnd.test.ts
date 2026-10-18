@@ -164,7 +164,7 @@ describe("the whole loop, end to end", () => {
     expect(plan).toContain("A storage bin — 1 charger, 2 cable (stored out of the way)");
     expect(plan).toContain("B pen cup — 3 pen (keeps pens together)");
     expect(plan).toContain("Toss — 4 paper (loose paper is clutter)");
-    expect(plan).toContain("Stays on your desk — 5 phone (you use it every day)");
+    expect(plan).toContain("Stays where it is — 5 phone (you use it every day)");
     expect(session().phase).toBe("planned");
 
     // 3. Step-by-step guidance mid-run.
@@ -188,9 +188,9 @@ describe("the whole loop, end to end", () => {
 
     const summary = texts().at(-1)!;
     expect(summary).toContain("Put away: charger, cable, pen.");
-    expect(summary).toContain("Tossed: paper.");
+    expect(summary).toContain("No longer visible (planned to toss): paper.");
     expect(summary).toContain("On the desk as planned: phone.");
-    expect(summary).toContain("Desk clear! Nice work.");
+    expect(summary).toContain("Visible items are where planned. Nice work.");
     expect(sent.some((r) => r.type === "image")).toBe(true);
     expect(session().phase).toBe("complete");
   });
@@ -243,6 +243,51 @@ describe("the whole loop, end to end", () => {
     expect(texts().at(-1)).toMatch(/too dark/i);
     expect(detectPhoto).not.toHaveBeenCalled();
     expect(session().phase).toBe("awaiting_photo");
+  });
+
+  it("keeps the plan and last good overlay when an after photo is empty or unrelated", async () => {
+    detectPhoto.mockResolvedValueOnce(detection(BEFORE_ITEMS));
+    await photo();
+    json.mockRejectedValueOnce(new Error("offline"));
+    await text("5");
+    for (const after of [detection([], { zones: [] }), detection([item(1, "mug", [0, 0, 20, 20])], { zones: [] })]) {
+      detectPhoto.mockResolvedValueOnce(after);
+      sent = [];
+      await photo();
+      expect(session().phase).toBe("planned");
+      expect(session().afterPhotos).toEqual([]);
+      expect(texts().at(-1)).toMatch(/can't confidently compare/);
+    }
+  });
+
+  it("rejects a dark after photo before detection but allows a featureless bright one", async () => {
+    detectPhoto.mockResolvedValueOnce(detection(BEFORE_ITEMS));
+    await photo();
+    json.mockRejectedValueOnce(new Error("offline"));
+    await text("5");
+    const calls = detectPhoto.mock.calls.length;
+    assessQuality.mockResolvedValueOnce({ brightness: 0.01, sharpness: 0, problem: "dark" });
+    await photo();
+    expect(detectPhoto).toHaveBeenCalledTimes(calls);
+    expect(session().phase).toBe("planned");
+    assessQuality.mockResolvedValueOnce({ brightness: 0.7, sharpness: 0, problem: "blurry" });
+    detectPhoto.mockResolvedValueOnce(detection([]));
+    await photo();
+    expect(detectPhoto).toHaveBeenCalledTimes(calls + 1);
+  });
+
+  it("records photo evidence but does not complete when a storage item is missing", async () => {
+    detectPhoto.mockResolvedValueOnce(detection(BEFORE_ITEMS));
+    await photo();
+    json.mockRejectedValueOnce(new Error("offline"));
+    await text("5");
+    detectPhoto.mockResolvedValueOnce(detection([item(1, "charger", [20, 300, 80, 380]), item(5, "phone", [620, 300, 700, 400])]));
+    await photo();
+    expect(session().phase).toBe("planned");
+    expect(session().items.find((i) => i.id === 1)!.evidence.at(-1)?.state).toBe("verified");
+    expect(session().items.find((i) => i.id === 2)!.evidence.at(-1)?.state).toBe("not_visible");
+    expect(session().verificationSummary).toContain("Can't see:");
+    expect(session().afterPhotos).toHaveLength(1);
   });
 
   it("never replies twice to a redelivered message", async () => {

@@ -1,3 +1,4 @@
+import { CANONICAL_LABELS } from "./labels.js";
 import type { Box } from "./overlay.js";
 
 export interface LabeledBox {
@@ -17,21 +18,7 @@ const SAME_LABEL_GAP = 0.05; // of image width
 
 // Labels that are one physical object on a desk, so nearby same-label boxes are pieces of it
 // (two earbuds, a key ring split in two). Pens, paper and cables are genuinely multiple.
-const SINGLE_OBJECT_LABELS = new Set([
-  "headphones",
-  "keys",
-  "charger",
-  "mug",
-  "notebook",
-  "laptop",
-  "wallet",
-  "water bottle",
-  "backpack",
-  "calculator",
-  "power bank",
-  // A pair of glasses often comes back as two boxes, one per lens.
-  "glasses",
-]);
+const SINGLE_OBJECT_LABELS = new Set(["headphones", "keys", "glasses"]);
 
 // Paired-label merge: the first label absorbs the second when they overlap enough.
 // Charger + cable is deliberately absent: a charger often overlaps its own separate USB cable.
@@ -47,7 +34,6 @@ export const SYNONYMS: Record<string, string> = {
   "power adapter": "charger",
   "phone charger": "charger",
   earbuds: "headphones",
-  book: "notebook",
   receipt: "paper",
   "food wrapper": "trash",
   "chip bag": "trash",
@@ -56,11 +42,21 @@ export const SYNONYMS: Record<string, string> = {
   clothing: "clothes",
   eyeglasses: "glasses",
   "post-it": "sticky note",
+  shoe: "shoes",
+  sneakers: "shoes",
+  hoodie: "clothes",
+  "t-shirt": "clothes",
+  jacket: "clothes",
+  towel: "blanket",
+  "toy horse": "toy",
+  "toy figurine": "toy",
+  doll: "toy",
+  "toy car": "toy",
+  "stuffed toy": "stuffed animal",
 };
 
 // Rule a: when two labels land on the same box, the winner's label is kept.
 const PREFERRED_OVER: Record<string, readonly string[]> = {
-  notebook: ["book"],
   headphones: ["cable"],
   charger: ["cable"],
   trash: ["snack", "paper"],
@@ -138,7 +134,11 @@ export function cleanDetections<T extends LabeledBox>(
   zones: readonly ZoneBox[],
   imageWidth: number,
 ): T[] {
-  const canonical = detections.map((d) => ({ ...d, label: SYNONYMS[d.label] ?? d.label }));
+  const allowed = new Set<string>(CANONICAL_LABELS);
+  const canonical = detections.map((d) => {
+    const label = d.label.trim().toLowerCase();
+    return { ...d, label: SYNONYMS[label] ?? label };
+  }).filter((d) => allowed.has(d.label));
 
   const maxGap = imageWidth * SAME_LABEL_GAP;
   const pieced = mergeWhile(canonical, (a, b) =>
@@ -164,5 +164,6 @@ export function cleanDetections<T extends LabeledBox>(
   // Items near a bin are kept; only items sitting inside a cup zone are the cup itself.
   // A mug is always an item, even inside a "cup" zone.
   const cupBoxes = zones.filter((z) => CONTAINER_ZONES.has(z.label)).map((z) => z.box);
-  return paired.filter((d) => d.label === "mug" || !cupBoxes.some((zb) => overlapOfSmaller(d.box, zb) >= CUP_OVERLAP));
+  return paired.filter((d) => d.label === "mug" || !cupBoxes.some((zb) =>
+    area(d.box) >= area(zb) * 0.6 && overlapOfSmaller(d.box, zb) >= CUP_OVERLAP));
 }

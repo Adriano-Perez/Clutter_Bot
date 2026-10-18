@@ -19,9 +19,10 @@ const zones = [
 describe("zoneName", () => {
   it("keeps the overlay letter for a detected zone and spells out the rest", () => {
     expect(zoneName(zones, "B")).toBe("B pen cup");
-    expect(zoneName(zones, "desk")).toBe("Stays on your desk");
+    expect(zoneName(zones, "desk")).toBe("Stays where it is");
     expect(zoneName(zones, "toss")).toBe("Toss");
-    expect(zoneName(zones, "off-desk")).toBe("Off the desk");
+    expect(zoneName(zones, "off-desk")).toBe("Out of the way");
+    expect(zoneName(zones, "kitchen")).toBe("Take to the kitchen");
     expect(zoneName(zones, "mystery")).toBe("mystery");
   });
 });
@@ -99,7 +100,7 @@ describe("planMessage", () => {
         "A storage bin — 1 charger, 2 cable (stored out of the way)",
         "B pen cup — 3 pen (keeps pens together)",
         "Toss — 4 paper (loose paper is clutter)",
-        "Stays on your desk — 5 phone (you use it every day)",
+        "Stays where it is — 5 phone (you use it every day)",
       ].join("\n"),
     );
   });

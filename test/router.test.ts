@@ -31,7 +31,7 @@ test("new sender gets an awaiting_photo session", async () => {
   await router.route(msg("e1"));
   const s = store.get("+12065550142")!;
   expect(s.phase).toBe("awaiting_photo");
-  expect(s.id).toMatch(/^[0-9a-f]{8}$/);
+  expect(s.id).toMatch(/^[0-9a-f]{32}$/);
 });
 
 test("dispatch picks the handler for the session phase", async () => {
@@ -89,4 +89,57 @@ test("reset and restart also start over", async () => {
     await router.route(msg(`r${i}`, word));
     expect(store.get("+12065550142")!.phase).toBe("awaiting_photo");
   }
+});
+
+
+test("a slow sender does not block another sender, while same-sender events stay ordered", async () => {
+  const store = new SqliteSessionStore(":memory:");
+  let release!: () => void;
+  const waiting = new Promise<void>((resolve) => { release = resolve; });
+  const events: string[] = [];
+  const router = new MessageRouter(store, {
+    awaiting_photo: async (_session, msg) => {
+      events.push(msg.eventId);
+      if (msg.eventId === "slow") await waiting;
+      return [];
+    },
+  });
+  const msg = (eventId: string, sender: string): InboundMessage => ({
+    eventId, sender, content: { type: "text", text: "hi" }, send: async () => {},
+  });
+  const first = router.route(msg("slow", "alice"));
+  const second = router.route(msg("queued", "alice"));
+  await router.route(msg("fast", "bob"));
+  expect(events).toEqual(["slow", "fast"]);
+  release();
+  await Promise.all([first, second]);
+  expect(events).toEqual(["slow", "fast", "queued"]);
+});
+
+test("a failed event does not poison a sender's queue", async () => {
+  const store = new SqliteSessionStore(":memory:");
+  const handler = vi.fn().mockRejectedValueOnce(new Error("broken image")).mockResolvedValueOnce([]);
+  const router = new MessageRouter(store, { awaiting_photo: handler });
+  const msg = (eventId: string): InboundMessage => ({ eventId, sender: "alice", content: { type: "other" }, send: async () => {} });
+  await expect(router.route(msg("bad"))).resolves.toBeUndefined();
+  await router.route(msg("good"));
+  expect(handler).toHaveBeenCalledTimes(2);
+});
+
+
+test("keeps the user informed during a slow room-photo call", async () => {
+  vi.useFakeTimers();
+  try {
+    const { router, awaiting, msg, sent } = setup();
+    let release!: (value: Reply[]) => void;
+    awaiting.mockImplementation(() => new Promise((resolve) => { release = resolve; }));
+    const photo = msg("slow-photo");
+    photo.content = { type: "attachment", mimeType: "image/jpeg", read: async () => new Uint8Array() };
+    const work = router.route(photo);
+    await vi.advanceTimersByTimeAsync(15000);
+    expect(sent).toContainEqual({ type: "text", text: "Still checking — a busy room can take up to 45 seconds." });
+    release([{ type: "text", text: "ready" }]);
+    await work;
+    expect(sent.at(-1)).toEqual({ type: "text", text: "ready" });
+  } finally { vi.useRealTimers(); }
 });

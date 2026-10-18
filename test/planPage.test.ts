@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { planLink } from "../src/plan.js";
@@ -23,7 +23,7 @@ const zone = (id: string, label: string): Zone => ({ id, label, polygon: [], box
 function planned(over: Partial<Session> = {}): Session {
   return {
     ...newSession("+12065550142"),
-    id: "a1b2c3d4",
+    id: "a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4",
     phase: "planned",
     beforePhoto: "data/media/0142/1700000000000.jpg",
     zones: [zone("A", "storage bin"), zone("B", "pen cup")],
@@ -39,7 +39,7 @@ function planned(over: Partial<Session> = {}): Session {
 
 describe("planPage", () => {
   it("renders the plan grouped by destination", () => {
-    const html = planPage(planned(), "/s/a1b2c3d4");
+    const html = planPage(planned(), "/s/a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4");
 
     expect(html).toContain("A storage bin");
     expect(html).toContain("1 charger, 2 cable");
@@ -49,20 +49,20 @@ describe("planPage", () => {
   });
 
   it("shows the before photo, and the after photo only once there is one", () => {
-    expect(planPage(planned(), "/s/a1b2c3d4")).toContain('src="/s/a1b2c3d4/photo/before"');
-    expect(planPage(planned(), "/s/a1b2c3d4")).not.toContain("photo/after");
+    expect(planPage(planned(), "/s/a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4")).toContain('src="/s/a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4/photo/before"');
+    expect(planPage(planned(), "/s/a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4")).not.toContain("photo/after");
 
     const done = planned({ afterPhotos: ["data/media/0142/1700000000001.jpg"] });
-    expect(planPage(done, "/s/a1b2c3d4")).toContain('src="/s/a1b2c3d4/photo/after"');
+    expect(planPage(done, "/s/a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4")).toContain('src="/s/a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4/photo/after"');
   });
 
   it("states the visibility limit on the page too", () => {
-    expect(planPage(planned(), "/s/a1b2c3d4")).toContain("I only count what I can see");
+    expect(planPage(planned(), "/s/a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4")).toContain("I only count what I can see");
   });
 
   it("says so when there is no plan yet", () => {
     const fresh = planned({ phase: "interview", items: [item(1, "mug")] });
-    expect(planPage(fresh, "/s/a1b2c3d4")).toContain("No plan yet");
+    expect(planPage(fresh, "/s/a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4")).toContain("No plan yet");
   });
 
   it("escapes anything that could close a tag", () => {
@@ -70,13 +70,13 @@ describe("planPage", () => {
       "&lt;img src=x onerror=&quot;alert(1)&quot;&gt;",
     );
     const sneaky = planned({ zones: [{ ...zone("A", "<script>alert(1)</script>"), id: "A" }] });
-    const html = planPage(sneaky, "/s/a1b2c3d4");
+    const html = planPage(sneaky, "/s/a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4");
     expect(html).not.toContain("<script>alert(1)</script>");
     expect(html).toContain("&lt;script&gt;");
   });
 
   it("carries no scripts at all", () => {
-    expect(planPage(planned(), "/s/a1b2c3d4")).not.toMatch(/<script/i);
+    expect(planPage(planned(), "/s/a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4")).not.toMatch(/<script/i);
     expect(notFoundPage()).not.toMatch(/<script/i);
   });
 });
@@ -128,14 +128,14 @@ describe("plan routes", () => {
   it("serves the page for a stored session", async () => {
     store.save(planned());
 
-    const res = await get("/s/a1b2c3d4");
+    const res = await get("/s/a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4");
 
     expect(res.status).toBe(200);
     expect(await res.text()).toContain("A storage bin");
   });
 
   it("404s an unknown or malformed id without touching the store", async () => {
-    expect((await get("/s/deadbeef")).status).toBe(404);
+    expect((await get("/s/deadbeefdeadbeefdeadbeefdeadbeef")).status).toBe(404);
     expect((await get("/s/not-a-session-id")).status).toBe(404);
     expect((await get("/s/../../.env")).status).toBe(404);
   });
@@ -148,7 +148,7 @@ describe("plan routes", () => {
     store.save(planned({ beforePhoto: path.join(dir, "1700000000000.jpg") }));
 
     try {
-      const res = await get("/s/a1b2c3d4/photo/before");
+      const res = await get("/s/a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4/photo/before");
 
       expect(res.status).toBe(200);
       expect(res.headers.get("content-type")).toBe("image/png");
@@ -164,13 +164,13 @@ describe("plan routes", () => {
     await writeFile(path.join(dir, "1700000000000.overlay.png"), Buffer.from("89504e470d0a1a0a", "hex"));
     store.save(planned({ beforePhoto: path.join(dir, "1700000000000.jpg") }));
 
-    expect((await get("/s/a1b2c3d4/photo/before")).status).toBe(404);
+    expect((await get("/s/a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4/photo/before")).status).toBe(404);
   });
 
   it("404s a photo that isn't on disk, rather than throwing", async () => {
     store.save(planned());
-    expect((await get("/s/a1b2c3d4/photo/before")).status).toBe(404);
-    expect((await get("/s/a1b2c3d4/photo/sideways")).status).toBe(404);
+    expect((await get("/s/a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4/photo/before")).status).toBe(404);
+    expect((await get("/s/a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4/photo/sideways")).status).toBe(404);
   });
 });
 
@@ -179,12 +179,12 @@ describe("planLink", () => {
 
   it("is built from PUBLIC_BASE_URL, with any trailing slash removed", () => {
     vi.stubEnv("PUBLIC_BASE_URL", "https://clutter.example.com/");
-    expect(planLink("a1b2c3d4")).toBe("https://clutter.example.com/s/a1b2c3d4");
+    expect(planLink("a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4")).toBe("https://clutter.example.com/s/a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4");
   });
 
   it("is absent when the server has no public address, so no broken link is sent", () => {
     vi.stubEnv("PUBLIC_BASE_URL", "");
-    expect(planLink("a1b2c3d4")).toBeUndefined();
+    expect(planLink("a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4")).toBeUndefined();
   });
 });
 
@@ -192,7 +192,39 @@ describe("sessionStore.getById", () => {
   it("finds a session by its slug and misses cleanly", () => {
     const store = new SqliteSessionStore(":memory:");
     store.save(planned());
-    expect(store.getById("a1b2c3d4")?.userHandle).toBe("+12065550142");
-    expect(store.getById("deadbeef")).toBeUndefined();
+    expect(store.getById("a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4")?.userHandle).toBe("+12065550142");
+    expect(store.getById("deadbeefdeadbeefdeadbeefdeadbeef")).toBeUndefined();
   });
+});
+
+
+it("does not serve photos through a symlink escaping the media directory", async () => {
+  const outside = await mkdtemp(path.join(tmpdir(), "clutterbot-private-"));
+  const dir = await mkdtemp(path.resolve("data/media/symlink-test-"));
+  const secret = path.join(outside, "private.png");
+  const link = path.join(dir, "photo.overlay.png");
+  const store = new SqliteSessionStore(":memory:");
+  try {
+    await writeFile(secret, "private data");
+    await symlink(secret, link);
+    const session = planned({ beforePhoto: path.join(dir, "photo.jpg") });
+    store.save(session);
+    const response = await planRoutes(store).request(`http://localhost/s/${session.id}/photo/before`);
+    expect(response.status).toBe(404);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+    await rm(outside, { recursive: true, force: true });
+  }
+});
+
+it("uses unguessable session links and keeps pages out of caches and referrers", async () => {
+  const store = new SqliteSessionStore(":memory:");
+  const s = newSession("alice");
+  expect(s.id).toMatch(/^[0-9a-f]{32}$/);
+  store.save(s);
+  const res = await planRoutes(store).request(`http://localhost/s/${s.id}`);
+  expect(res.status).toBe(200);
+  expect(res.headers.get("cache-control")).toBe("no-store");
+  expect(res.headers.get("referrer-policy")).toBe("no-referrer");
+  expect((await planRoutes(store).request("http://localhost/s/12345678")).status).toBe(404);
 });

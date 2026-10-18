@@ -1,4 +1,4 @@
-import type { Item } from "../types.js";
+import type { Item, Zone } from "../types.js";
 import { fractionInside, iou } from "../vision/cleanup.js";
 import type { Box } from "../vision/overlay.js";
 
@@ -6,6 +6,7 @@ const INSIDE_ZONE = 0.7; // share of a box inside a zone box to count as stored
 const PRE_STORED_IOU = 0.5; // same spot as something that was already in a bin before
 const DESK = "desk"; // destinationZoneId the interview plan uses for keep-on-desk items
 const TOSS = "toss"; // destinationZoneId the interview plan uses for things to throw away
+const KITCHEN = "kitchen";
 const OFF_DESK = "off-desk"; // destinationZoneId for things that leave the desk (backpack, clothes)
 
 export type DetectionStatus = "putAway" | "keptOnDesk" | "stillOut" | "unmatched";
@@ -14,6 +15,7 @@ export interface AfterDetection {
   label: string;
   box: Box;
   inZone: boolean;
+  zoneId?: string;
   status: DetectionStatus;
   itemId?: number; // the original item this detection was matched to
 }
@@ -43,59 +45,85 @@ function hasPlan(items: readonly Item[]): boolean {
   return items.length > 0 && items.every((i) => typeof i.destinationZoneId === "string");
 }
 
-/**
- * Compares the before items with what the after photo shows, per label:
- * still-out detections claim the nearest original items first, then in-zone detections count as
- * put away, and anything left over is "tossed" (if planned for toss) or "can't see".
- * A missing item is never counted as put away. In-zone detections that match something already
- * stored in the before photo (e.g. a label taped inside a bin) are ignored.
- */
+export type VerificationZone = { id: string; box: Box };
+
+/** Match storage spots geometrically, keeping the BEFORE letters even if a detection disappears. */
+export function matchZones(before: readonly Zone[], after: readonly Zone[]): VerificationZone[] {
+  const family = (label: string) => ["storage bin", "box", "tray"].includes(label) ? "container" :
+    ["bookshelf", "shelf"].includes(label) ? "shelf" : label;
+  const candidates = before.flatMap((a) => a.box ? after.flatMap((b) =>
+    b.box && family(a.label) === family(b.label) && iou(a.box!, b.box) >= 0.3
+      ? [{ id: a.id, box: b.box, score: iou(a.box!, b.box) }] : [],
+  ) : []).sort((a, b) => b.score - a.score);
+  const usedBefore = new Set<string>();
+  const usedAfter = new Set<Box>();
+  return candidates.filter((c) => {
+    if (usedBefore.has(c.id) || usedAfter.has(c.box)) return false;
+    usedBefore.add(c.id);
+    usedAfter.add(c.box);
+    return true;
+  }).map(({ id, box }) => ({ id, box }));
+}
+
+/** True only when every planned item is accounted for, rather than merely undetected. */
+export function isComplete(c: Comparison): boolean {
+  return c.stillOut.length === 0 && c.cantSee.length === 0 &&
+    c.putAway.length + c.keptOnDesk.length > 0;
+}
+
+/** Compare visible objects with their actual planned destinations. Missing objects stay uncertain. */
 export function compareAfter(
   original: readonly Item[],
   detected: readonly { label: string; box: Box }[],
-  zoneBoxes: readonly Box[],
+  zoneBoxes: readonly (Box | VerificationZone)[],
   { preStored = [] }: { preStored?: readonly { label: string; box: Box }[] } = {},
 ): Comparison {
-  const detections: AfterDetection[] = detected.map((d) => ({
-    label: d.label,
-    box: d.box,
-    inZone: zoneBoxes.some((z) => fractionInside(d.box, z) >= INSIDE_ZONE),
-    status: "unmatched",
-  }));
+  // Box-only callers are retained for the standalone spike/tests; the live path passes stable IDs.
+  const zones = zoneBoxes.map((z, i) => Array.isArray(z) ? { id: String.fromCharCode(65 + i), box: z } : z);
+  const detections: AfterDetection[] = detected.map((d) => {
+    const zone = zones.filter((z) => fractionInside(d.box, z.box) >= INSIDE_ZONE)
+      .sort((a, b) => (a.box[2] - a.box[0]) * (a.box[3] - a.box[1]) -
+        (b.box[2] - b.box[0]) * (b.box[3] - b.box[1]))[0];
+    return { label: d.label, box: d.box, inZone: !!zone, ...(zone ? { zoneId: zone.id } : {}), status: "unmatched" };
+  });
   const isPreStored = (d: AfterDetection) =>
     d.inZone && preStored.some((p) => p.label === d.label && iou(p.box, d.box) >= PRE_STORED_IOU);
-  const deskRule = hasPlan(original);
-
+  const planned = hasPlan(original);
   const result: Comparison = { putAway: [], stillOut: [], keptOnDesk: [], tossed: [], movedOff: [], cantSee: [], detections };
-  const labels = [...new Set(original.map((i) => i.label))];
 
-  for (const label of labels) {
+  for (const label of new Set(original.map((i) => i.label))) {
     const pending = original.filter((i) => i.label === label);
-    const out = detections.filter((d) => d.label === label && !d.inZone);
-    const stored = detections.filter((d) => d.label === label && d.inZone && !isPreStored(d));
-
-    for (const d of out) {
+    // Loose objects claim their nearest originals first, so a visible unfinished object cannot hide.
+    const matches = detections.filter((d) => d.label === label && !isPreStored(d))
+      .sort((a, b) => Number(a.inZone) - Number(b.inZone));
+    for (const d of matches) {
       if (pending.length === 0) break;
-      pending.sort((a, b) => distance(a.box, d.box) - distance(b.box, d.box));
+      pending.sort((a, b) => {
+        if (d.inZone && planned) {
+          const correct = Number(b.destinationZoneId === d.zoneId) - Number(a.destinationZoneId === d.zoneId);
+          if (correct) return correct;
+        }
+        return distance(a.box, d.box) - distance(b.box, d.box);
+      });
       const item = pending.shift()!;
-      const onDesk = deskRule && item.destinationZoneId === DESK;
-      (onDesk ? result.keptOnDesk : result.stillOut).push(item);
-      d.status = onDesk ? "keptOnDesk" : "stillOut";
-      d.itemId = item.id;
-    }
-    pending.sort((a, b) => a.id - b.id);
-    for (const item of pending) {
-      const d = stored.shift();
-      if (d) {
+      if (planned && item.destinationZoneId === DESK && !d.inZone) {
+        result.keptOnDesk.push(item);
+        d.status = "keptOnDesk";
+      } else if (d.inZone && (!planned || item.destinationZoneId === d.zoneId)) {
         result.putAway.push(item);
         d.status = "putAway";
-        d.itemId = item.id;
-      } else if (item.destinationZoneId === TOSS) result.tossed.push(item);
-      else if (item.destinationZoneId === OFF_DESK) result.movedOff.push(item);
+      } else {
+        result.stillOut.push(item);
+        d.status = "stillOut";
+      }
+      d.itemId = item.id;
+    }
+    for (const item of pending) {
+      if (item.destinationZoneId === TOSS) result.tossed.push(item);
+      else if (item.destinationZoneId === OFF_DESK || item.destinationZoneId === KITCHEN) result.movedOff.push(item);
       else result.cantSee.push(item);
     }
   }
-
   for (const list of [result.putAway, result.stillOut, result.keptOnDesk, result.tossed, result.movedOff, result.cantSee]) {
     list.sort((a, b) => a.id - b.id);
   }
@@ -122,15 +150,13 @@ function idList(items: readonly Item[]): string {
 export function buildSummary(c: Comparison): string {
   const parts: string[] = [];
   if (c.putAway.length > 0) parts.push(`Put away: ${countList(c.putAway)}.`);
-  if (c.tossed.length > 0) parts.push(`Tossed: ${countList(c.tossed)}.`);
-  if (c.movedOff.length > 0) parts.push(`Moved off the desk: ${countList(c.movedOff)}.`);
+  if (c.tossed.length > 0) parts.push(`No longer visible (planned to toss): ${countList(c.tossed)}.`);
+  if (c.movedOff.length > 0) parts.push(`No longer visible (planned to take away): ${countList(c.movedOff)}.`);
   if (c.keptOnDesk.length > 0) parts.push(`On the desk as planned: ${countList(c.keptOnDesk)}.`);
   if (c.stillOut.length > 0) parts.push(`Still out: ${idList(c.stillOut)}.`);
   if (c.cantSee.length > 0) parts.push(`Can't see: ${idList(c.cantSee)}.`);
-  parts.push(
-    c.stillOut.length === 0
-      ? "Desk clear! Nice work."
-      : "I can't see inside closed bins, so I'm only counting what's visible.",
-  );
+  if (isComplete(c)) parts.push("Visible items are where planned. Nice work.");
+  else if (c.stillOut.length === 0) parts.push("I can't confirm everything yet. Send the same view with the storage spots visible.");
+  parts.push("I can't see inside closed bins, so I'm only counting what's visible.");
   return parts.join(" ");
 }

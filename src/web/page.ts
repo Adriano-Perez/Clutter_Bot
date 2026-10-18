@@ -79,14 +79,14 @@ export function planPage(session: Session, basePath: string): string {
   const groups = groupPlan(session.items, zones);
 
   const parts: string[] = [
-    `<h1>Your desk</h1>`,
+    `<h1>Your space</h1>`,
     `<p class="sub">${session.items.length} ${session.items.length === 1 ? "thing" : "things"}, ` +
       `${groups.length} ${groups.length === 1 ? "place" : "places"} for them to go.</p>`,
   ];
 
   if (session.beforePhoto) {
     parts.push(
-      `<figure><img src="${escapeHtml(basePath)}/photo/before" alt="Your desk with every item numbered and every storage spot lettered">`,
+      `<figure><img src="${escapeHtml(basePath)}/photo/before" alt="Your space with every item numbered and every storage spot lettered">`,
       `<figcaption>Items numbered, storage spots lettered.</figcaption></figure>`,
     );
   }
@@ -96,7 +96,8 @@ export function planPage(session: Session, basePath: string): string {
     parts.push(`<p class="empty">No plan yet — answer the question in the message thread.</p>`);
   } else {
     const items = groups.map((group) => {
-      const { where, what, why } = splitLine(groupLine(group));
+      const { where, why } = splitLine(groupLine(group));
+      const what = group.items.map((item) => `${item.id} ${item.label}`).join(", ");
       return (
         `<li><span class="where">${escapeHtml(where)}</span> — ${escapeHtml(what)}` +
         (why ? `<br><span class="why">${escapeHtml(why)}</span>` : "") +
@@ -106,14 +107,30 @@ export function planPage(session: Session, basePath: string): string {
     parts.push(`<ul>${items.join("")}</ul>`);
   }
 
+  if (session.items.some((item) => item.evidence.some((e) => e.state === "claimed" || e.state !== "seen"))) {
+    const photoStatus: Record<string, string> = {
+      seen: "seen in the first photo", verified: "matches the plan", still_here: "needs attention",
+      not_visible: "not visible; destination unconfirmed",
+    };
+    const progress = session.items.map((item) => {
+      const claimed = session.steps.some((step) => step.itemId === item.id && step.done);
+      const latestPhoto = item.evidence.findLast((e) => e.source === "photo");
+      return `<li><strong>${item.id} ${escapeHtml(item.label)}</strong><br>` +
+        `${claimed ? "You said: done · " : ""}Photo: ${escapeHtml(photoStatus[latestPhoto?.state ?? ""] ?? "not checked yet")}</li>`;
+    });
+    parts.push(`<h2>Progress</h2><ul>${progress.join("")}</ul>`);
+  }
+
   if (session.afterPhotos.length > 0) {
     parts.push(
       `<h2>How it went</h2>`,
-      `<figure><img src="${escapeHtml(basePath)}/photo/after" alt="Your desk after tidying, with each item marked green or red">`,
-      `<figcaption>Green went away. Red is still out.</figcaption></figure>`,
+      `<figure><img src="${escapeHtml(basePath)}/photo/after" alt="Your space after tidying, with each item marked green or red">`,
+      `<figcaption>Green circles match the plan. Red squares still need attention.</figcaption></figure>`,
     );
   }
 
+  if (session.verificationSummary) parts.push(`<p>${escapeHtml(session.verificationSummary)}</p>`);
+
   parts.push(`<p class="note">${escapeHtml(HONESTY)}</p>`);
-  return layout("Your desk · ClutterBot", parts.join("\n"));
+  return layout("Your space · ClutterBot", parts.join("\n"));
 }

@@ -16,6 +16,7 @@ export interface InboundMessage {
   sender: string;
   content: InboundContent;
   send(reply: Reply): Promise<void>;
+  isCurrent?: () => boolean;
 }
 
 export type PhaseHandler = (session: Session, msg: InboundMessage) => Promise<Reply[]>;
@@ -23,12 +24,32 @@ export type PhaseHandler = (session: Session, msg: InboundMessage) => Promise<Re
 export const isPhoto = (c: InboundContent) => c.type === "attachment" && c.mimeType.startsWith("image/");
 
 export class MessageRouter {
+  private pending = new Map<string, Promise<void>>();
+
+  /** Order each person's events without making every other person wait for their model call. */
+  route(msg: InboundMessage): Promise<void> {
+    const previous = this.pending.get(msg.sender) ?? Promise.resolve();
+    const current = previous.catch(() => {}).then(async () => {
+      try {
+        await this.handle(msg);
+      } catch (error) {
+        console.error(`router: failed for ${mask(msg.sender)}: ${(error as Error).message}`);
+        await msg.send({ type: "text", text: "I couldn't finish processing that message. Please try again, or text status to check where we left off." });
+      }
+    });
+    this.pending.set(msg.sender, current);
+    void current.finally(() => {
+      if (this.pending.get(msg.sender) === current) this.pending.delete(msg.sender);
+    }).catch(() => {});
+    return current;
+  }
+
   constructor(
     private store: SessionStore,
     private handlers: Partial<Record<Session["phase"], PhaseHandler>>,
   ) {}
 
-  async route(msg: InboundMessage) {
+  private async handle(msg: InboundMessage) {
     // Mark before handling: at-most-once, a crash mid-handler drops the event rather than double-replying.
     if (!this.store.markSeen(msg.eventId)) {
       console.log(`router: skip seen event ${msg.eventId}`);
@@ -56,7 +77,26 @@ export class MessageRouter {
 
     // NFR-GW-01: acknowledge photos before any slow work.
     if (isPhoto(msg.content)) await msg.send({ type: "text", text: "Got it — looking at your photo…" });
-    const replies = await handler(session, msg);
+    const snapshotId = session.id;
+    const progress = isPhoto(msg.content) ? setTimeout(() => {
+      void msg.send({ type: "text", text: "Still checking — a busy room can take up to 45 seconds." })
+        .catch((error) => console.error("router: progress reply failed", (error as Error).message));
+    }, 15_000) : undefined;
+    let replies: Reply[];
+    try {
+      replies = await handler(session, {
+        ...msg,
+        isCurrent: () => {
+          const live = this.store.get(msg.sender);
+          return !this.pending.has(msg.sender) && live?.id === snapshotId && live.phase === "planned" &&
+            live.afterPhotos.length === session.afterPhotos.length &&
+            JSON.stringify(live.items.map((i) => [i.id, i.label, i.destinationZoneId])) ===
+            JSON.stringify(session.items.map((i) => [i.id, i.label, i.destinationZoneId]));
+        },
+      });
+    } finally {
+      clearTimeout(progress);
+    }
     this.store.save(session);
     for (const r of replies) await msg.send(r);
   }

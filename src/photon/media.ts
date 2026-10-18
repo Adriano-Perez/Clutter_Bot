@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import convert from "heic-convert";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -13,7 +14,7 @@ export async function savePhoto(bytes: Uint8Array, mimeType: string, senderId: s
   const ext = heic ? "jpg" : mimeType.split("/")[1].replace("jpeg", "jpg").replace(/\W/g, "");
   const dir = path.join(MEDIA_DIR, senderId?.replace(/\D/g, "").slice(-4) || "unknown");
   await mkdir(dir, { recursive: true });
-  const file = path.join(dir, `${Date.now()}.${ext}`);
+  const file = path.join(dir, `${Date.now()}-${randomUUID().slice(0, 8)}.${ext}`);
   await writeFile(file, data);
   return file;
 }

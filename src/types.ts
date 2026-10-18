@@ -22,7 +22,7 @@ export interface Zone {
 export interface Step { n: number; itemId: number; instruction: string; done: boolean; }
 
 export interface Session {
-  id: string;                  // short slug used in /s/:id
+  id: string;                  // unguessable token used in /s/:id
   userHandle: string;          // iMessage sender, normalized E.164 or Apple ID email
   phase: "awaiting_photo" | "interview" | "planned" | "guiding" | "verifying" | "complete";
   beforePhoto?: string; afterPhotos: string[];
@@ -30,5 +30,6 @@ export interface Session {
   items: Item[]; zones: Zone[];
   interview: { q: string; a?: string }[];
   steps: Step[]; previewImage?: string;
+  verificationSummary?: string;
   createdAt: string; updatedAt: string;
 }

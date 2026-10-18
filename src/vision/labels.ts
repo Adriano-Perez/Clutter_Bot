@@ -27,6 +27,18 @@ export const LABEL_VOCAB = [
   "laptop",
   "backpack",
   "clothing",
+  "shoes",
+  "book",
+  "pillow",
+  "blanket",
+  "plate",
+  "bowl",
+  "toy horse",
+  "toy figurine",
+  "doll",
+  "toy car",
+  "stuffed animal",
+  "board game",
   "food wrapper",
   "chip bag",
   "soda can",
@@ -58,13 +70,39 @@ export const CANONICAL_LABELS = [
   "laptop",
   "backpack",
   "clothes",
+  "shoes",
+  "book",
+  "pillow",
+  "blanket",
+  "plate",
+  "bowl",
+  "toy",
+  "stuffed animal",
+  "board game",
   "trash",
 ] as const;
 
 export type CanonicalLabel = (typeof CANONICAL_LABELS)[number];
 
 // FR-DET-03: storage-zone categories for /v1/detect. No "mug" here: a mug is always an item.
-export const ZONE_CATEGORIES = ["storage bin", "box", "pen cup", "cup", "drawer", "tray"] as const;
+// Ordered most specific first, since an earlier category wins when two zone boxes overlap.
+// Covers a whole room, not just a desk: a closet and a laundry basket are storage too.
+export const ZONE_CATEGORIES = [
+  "closet",
+  "dresser",
+  "laundry basket",
+  "bookshelf",
+  "shelf",
+  "nightstand",
+  "toy box",
+  "storage basket",
+  "storage bin",
+  "box",
+  "pen cup",
+  "drawer",
+  "cup",
+  "tray",
+] as const;
 
 // Unused since zones moved to /v1/detect boxes; kept for annotate() experiments.
 export const ZONE_PROMPT =

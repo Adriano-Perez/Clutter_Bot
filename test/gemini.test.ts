@@ -119,3 +119,14 @@ describe("gemini.json model fallback", () => {
     expect(textModels()).toEqual(["same", "other"]);
   });
 });
+
+
+it("leaves time for a fallback when the first model hangs", async () => {
+  vi.stubEnv("GEMINI_API_KEY", "test-secret-key");
+  generateContent.mockReturnValueOnce(new Promise(() => {})).mockResolvedValueOnce({ text: '{"name":"pen"}' });
+  try {
+    const result = await json("prompt", schema, validator, { models: ["hung", "healthy"], timeoutMs: 3000, perAttemptMs: 20 });
+    expect(result.value).toEqual({ name: "pen" });
+    expect(generateContent.mock.calls.map((call) => call[0].model)).toEqual(["hung", "healthy"]);
+  } finally { vi.unstubAllEnvs(); generateContent.mockReset(); }
+});

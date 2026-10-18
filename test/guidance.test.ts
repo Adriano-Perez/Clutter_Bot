@@ -43,7 +43,8 @@ describe("instructionFor", () => {
   it("says what to physically do", () => {
     expect(instructionFor(item(1, "charger", "A"), zones)).toBe("Put the charger (1) in A storage bin.");
     expect(instructionFor(item(4, "paper", "toss"), zones)).toBe("Throw away the paper (4).");
-    expect(instructionFor(item(6, "backpack", "off-desk"), zones)).toBe("Take the backpack (6) off the desk.");
+    expect(instructionFor(item(6, "backpack", "off-desk"), zones)).toBe("Put the backpack (6) away where it belongs.");
+    expect(instructionFor(item(7, "mug", "kitchen"), zones)).toBe("Take the mug (7) to the kitchen.");
     expect(instructionFor(item(5, "phone", "desk"), zones)).toBe("Leave the phone (5) where it is.");
   });
 });
@@ -166,16 +167,44 @@ describe("A is full", () => {
   });
 });
 
-describe("a label correction invalidates the steps", () => {
+describe("a label correction updates the steps", () => {
   it("rebuilds them from the new plan", () => {
     const s = planned();
     say(s, "next");
     expect(s.steps).toHaveLength(5);
 
     say(s, "4 is a mug"); // paper -> mug, so it stops being a toss item
-    expect(s.steps).toHaveLength(0);
+    expect(s.steps).toHaveLength(5);
 
     expect(say(s, "next")).toBe("Step 1 of 5: Put the charger (1) in A storage bin.");
-    expect(s.steps.find((step) => step.itemId === 4)!.instruction).toBe("Put the mug (4) in A storage bin.");
+    expect(s.steps.find((step) => step.itemId === 4)!.instruction).toBe("Take the mug (4) to the kitchen.");
+  });
+});
+
+
+describe("guidance regressions", () => {
+  it("never sends items back to a bin already reported full", () => {
+    const s = planned({ zones: [zone("A", "storage bin"), zone("C", "storage bin")] });
+    say(s, "A is full");
+    say(s, "C is full");
+    expect(s.items.filter((i) => [1, 2].includes(i.id)).map((i) => i.destinationZoneId)).toEqual(["desk", "desk"]);
+    say(s, "3 is a power bank");
+    expect(s.items.find((i) => i.id === 3)!.destinationZoneId).toBe("desk");
+  });
+
+  it("preserves completed work when an unrelated item is corrected", () => {
+    const s = planned();
+    say(s, "done");
+    say(s, "4 is a mug");
+    expect(s.steps.filter((step) => step.done).map((step) => step.itemId)).toEqual([1]);
+    expect(say(s, "next")).toContain("cable (2)");
+    expect(statusText(s)).toContain("1 of 5");
+  });
+
+  it("requires a fresh claim when the completed item itself changes destination", () => {
+    const s = planned();
+    say(s, "done");
+    say(s, "1 is a mug");
+    expect(s.steps.find((step) => step.itemId === 1)?.done).toBe(false);
   });
 });

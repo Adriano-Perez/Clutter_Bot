@@ -38,7 +38,11 @@ function letter(zones: readonly Omit<Zone, "id">[]): Zone[] {
 export function filterZones(raw: readonly { label: string; box: Box }[], width: number, height: number): Zone[] {
   const minArea = width * height * MIN_AREA_FRACTION;
   const merged: { label: string; box: Box }[] = [];
-  for (const z of raw.filter((z) => area(z.box) >= minArea)) {
+  const allowed = new Set<string>(ZONE_CATEGORIES);
+  const bounded = raw.map((z) => ({ label: z.label.trim().toLowerCase(), box: [
+    Math.max(0, z.box[0]), Math.max(0, z.box[1]), Math.min(width, z.box[2]), Math.min(height, z.box[3]),
+  ] as Box })).filter((z) => allowed.has(z.label));
+  for (const z of bounded.filter((z) => area(z.box) >= minArea)) {
     const i = merged.findIndex((m) => iou(m.box, z.box) >= MERGE_IOU);
     if (i === -1) {
       merged.push({ ...z });
@@ -60,6 +64,7 @@ export function withoutMugZones(zones: readonly Zone[], items: readonly { label:
 // FR-DET-03: storage zones as pixel boxes from /v1/detect.
 export async function detectZones(photo: NormalizedPhoto): Promise<Zone[]> {
   const result = await detect(photo.dataUrl, { categories: [...ZONE_CATEGORIES], reasoningEffort: "none" });
+  if (result.finishReason !== "complete") throw new Error("Storage detection was incomplete");
   const raw = result.detections.flatMap(({ mention, point_box: pb }) =>
     pb ? [{ label: mention, box: [pb.top_left.x, pb.top_left.y, pb.bottom_right.x, pb.bottom_right.y] as Box }] : [],
   );
