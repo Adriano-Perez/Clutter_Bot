@@ -86,7 +86,7 @@ export function planPage(session: Session, basePath: string): string {
 
   if (session.beforePhoto) {
     parts.push(
-      `<figure><img src="${escapeHtml(basePath)}/photo/before" alt="Your desk with every item numbered and every storage spot lettered">`,
+      `<figure><img src="${escapeHtml(basePath)}/photo/before" alt="Your space with every item numbered and every storage spot lettered">`,
       `<figcaption>Items numbered, storage spots lettered.</figcaption></figure>`,
     );
   }
@@ -124,7 +124,7 @@ export function planPage(session: Session, basePath: string): string {
   if (session.afterPhotos.length > 0) {
     parts.push(
       `<h2>How it went</h2>`,
-      `<figure><img src="${escapeHtml(basePath)}/photo/after" alt="Your desk after tidying, with each item marked green or red">`,
+      `<figure><img src="${escapeHtml(basePath)}/photo/after" alt="Your space after tidying, with each item marked green or red">`,
       `<figcaption>Green circles match the plan. Red squares still need attention.</figcaption></figure>`,
     );
   }
@@ -132,5 +132,5 @@ export function planPage(session: Session, basePath: string): string {
   if (session.verificationSummary) parts.push(`<p>${escapeHtml(session.verificationSummary)}</p>`);
 
   parts.push(`<p class="note">${escapeHtml(HONESTY)}</p>`);
-  return layout("Your desk · ClutterBot", parts.join("\n"));
+  return layout("Your space · ClutterBot", parts.join("\n"));
 }

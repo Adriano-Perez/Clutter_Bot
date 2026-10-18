@@ -224,3 +224,10 @@ describe("verification safety", () => {
     expect(matchZones([zone], [{ ...zone, box: [300, 300, 400, 400] }])).toEqual([]);
   });
 });
+
+
+it("matches a box that the next detection calls a storage bin", () => {
+  const box: Box = [0, 0, 100, 100];
+  expect(matchZones([{ id: "B", label: "box", box, polygon: [] }],
+    [{ id: "A", label: "storage bin", box, polygon: [] }])).toEqual([{ id: "B", box }]);
+});

@@ -38,7 +38,11 @@ function letter(zones: readonly Omit<Zone, "id">[]): Zone[] {
 export function filterZones(raw: readonly { label: string; box: Box }[], width: number, height: number): Zone[] {
   const minArea = width * height * MIN_AREA_FRACTION;
   const merged: { label: string; box: Box }[] = [];
-  for (const z of raw.filter((z) => area(z.box) >= minArea)) {
+  const allowed = new Set<string>(ZONE_CATEGORIES);
+  const bounded = raw.map((z) => ({ label: z.label.trim().toLowerCase(), box: [
+    Math.max(0, z.box[0]), Math.max(0, z.box[1]), Math.min(width, z.box[2]), Math.min(height, z.box[3]),
+  ] as Box })).filter((z) => allowed.has(z.label));
+  for (const z of bounded.filter((z) => area(z.box) >= minArea)) {
     const i = merged.findIndex((m) => iou(m.box, z.box) >= MERGE_IOU);
     if (i === -1) {
       merged.push({ ...z });

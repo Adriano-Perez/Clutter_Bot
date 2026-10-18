@@ -31,10 +31,11 @@ export interface DetectPhotoResult {
   };
 }
 
-function toBoxes(result: DetectResult): LabeledBox[] {
+function toBoxes(result: DetectResult, width: number, height: number): LabeledBox[] {
   return result.detections.flatMap(({ mention, point_box: pb }) => {
     if (!pb) return [];
-    const box: Box = [pb.top_left.x, pb.top_left.y, pb.bottom_right.x, pb.bottom_right.y];
+    const box: Box = [Math.max(0, pb.top_left.x), Math.max(0, pb.top_left.y), Math.min(width, pb.bottom_right.x), Math.min(height, pb.bottom_right.y)];
+    if (box[2] <= box[0] || box[3] <= box[1]) return [];
     return [{ label: mention, box }];
   });
 }
@@ -95,7 +96,7 @@ export async function detectPhoto(
   ]);
 
   if (itemsResult.finishReason !== "complete") throw new Error("Detection was incomplete; please retake a closer photo.");
-  const rawItems = toBoxes(itemsResult);
+  const rawItems = toBoxes(itemsResult, photo.width, photo.height);
   const boxZones = withoutMugZones(zonesOutcome.zones ?? [], rawItems);
   const cleaned = cleanDetections(rawItems, boxZones, photo.width);
   const isStored = (d: LabeledBox) => boxZones.some((z) => fractionInside(d.box, z.box) >= INSIDE_ZONE);
