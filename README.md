@@ -160,8 +160,9 @@ a single time budget, and if every one fails the same rules run in plain code. T
 stall on this.
 
 The preview illustration is a second Gemini call — an image edit of your own photo showing roughly
-how the desk could look, always captioned *"Illustration, not a photo"*. It's best-effort: it runs
-after the plan is already delivered, and any failure is logged and dropped rather than shown.
+how the desk could look, always captioned *"Illustration, not a photo"*. Measured at 17-24 s on a
+real desk photo. It's best-effort: it runs after the plan is already delivered, and any failure is
+logged and dropped rather than shown.
 
 Measurements in [`specs/features/04-organization-plan/validation.md`](specs/features/04-organization-plan/validation.md).
 
@@ -203,8 +204,8 @@ Each of those has a test that tries to smuggle an instruction through and assert
 - It only counts what the camera can see. Closed bins and drawers are opaque to it, and it says so.
 - Detection is not deterministic — the same photo can return a slightly different set of items
   between runs.
-- The preview illustration needs a Gemini key with billing enabled; on the free tier every image
-  model returns `limit: 0`.
+- The preview illustration depends on image quota being available on the Gemini key. When it isn't,
+  it's skipped silently and the plan is unaffected.
 
 ## What's next
 
