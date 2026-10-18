@@ -11,7 +11,13 @@ export interface Item {
   evidence: { state: EvidenceState; at: string; source: "photo" | "user_text" | "voice" }[];
 }
 
-export interface Zone { id: string; label: string; polygon: [number, number][]; full?: boolean; }
+export interface Zone {
+  id: string;
+  label: string;
+  polygon: [number, number][];  // for box zones, the box's 4 corners
+  box?: [number, number, number, number];  // x1,y1,x2,y2 when the zone came from /v1/detect
+  full?: boolean;
+}
 
 export interface Step { n: number; itemId: number; instruction: string; done: boolean; }
 
