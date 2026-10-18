@@ -4,7 +4,7 @@ Owner: **B** (Adriano). Phase 0 → Phase 1.
 
 ## Tasks
 - [ ] Create Photon project + key (`project:read`, `project:write`, `platforms:write`); assign shared iMessage line in the dashboard
-- [ ] `.env`: `PHOTON_API_KEY`, `PHOTON_PROJECT_ID`, `PHOTON_AGENT_HANDLE`; add `.env` to `.gitignore`
+- [ ] `.env`: `PROJECT_ID`, `PROJECT_SECRET`, `PHOTON_AGENT_HANDLE`; add `.env` to `.gitignore`
 - [ ] `PhotonClient` with `listMessages`, `sendMessage` (idempotency key), and the beta `ping` → reply test
 - [ ] Text a photo to the line; inspect the raw event JSON; implement `downloadAttachment` with 409/`Retry-After` retry
 - [ ] **Decision point (by 9:00 pm):** inbound photos work → continue; otherwise build `/s/:id/upload` (FR-GW-05)
