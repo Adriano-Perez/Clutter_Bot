@@ -26,6 +26,7 @@ const SINGLE_OBJECT_LABELS = new Set([
   "laptop",
   "wallet",
   "water bottle",
+  "backpack",
 ]);
 
 // Paired-label merge: the first label absorbs the second when they overlap enough.
@@ -44,6 +45,11 @@ const SYNONYMS: Record<string, string> = {
   earbuds: "headphones",
   book: "notebook",
   receipt: "paper",
+  "food wrapper": "trash",
+  "chip bag": "trash",
+  "soda can": "trash",
+  tissue: "trash",
+  clothing: "clothes",
 };
 
 // Rule a: when two labels land on the same box, the winner's label is kept.
@@ -51,6 +57,7 @@ const PREFERRED_OVER: Record<string, readonly string[]> = {
   notebook: ["book"],
   headphones: ["cable"],
   charger: ["cable"],
+  trash: ["snack", "paper"],
 };
 
 export function iou(a: Box, b: Box): number {

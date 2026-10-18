@@ -142,4 +142,19 @@ describe("overlayItems", () => {
       { id: 3, box: keys.box, color: RED },
     ]);
   });
+
+  it("counts a missing off-desk item as moved off, and says the desk is clear", () => {
+    const backpack = item(5, "backpack", [600, 20, 760, 200], "off-desk");
+    const trash = item(6, "trash", [250, 20, 290, 90], "toss");
+    const c = compareAfter([backpack, trash, item(1, "charger", charger.box, "A")], [{ label: "charger", box: [40, 330, 100, 400] }], [BIN]);
+
+    expect(c.movedOff).toEqual([backpack]);
+    expect(c.tossed).toEqual([trash]);
+    expect(buildSummary(c)).toBe("Put away: charger. Tossed: trash. Moved off the desk: backpack. Desk clear! Nice work.");
+  });
+
+  it("pluralizes trash readably", () => {
+    const t = [item(6, "trash", [250, 20, 290, 90], "toss"), item(7, "trash", [300, 20, 340, 90], "toss")];
+    expect(buildSummary(compareAfter(t, [], [BIN]))).toBe("Tossed: 2 pieces of trash. Desk clear! Nice work.");
+  });
 });

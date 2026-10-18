@@ -102,6 +102,33 @@ describe("cleanDetections", () => {
     expect(out.map((d) => d.label)).toEqual(["charger", "headphones", "paper"]);
   });
 
+  it("maps trash and clothing words to trash and clothes", () => {
+    const out = cleanDetections(
+      [
+        { label: "chip bag", box: [0, 0, 80, 100] },
+        { label: "soda can", box: [200, 0, 240, 70] },
+        { label: "tissue", box: [300, 0, 360, 50] },
+        { label: "food wrapper", box: [400, 0, 470, 40] },
+        { label: "clothing", box: [500, 0, 700, 200] },
+      ],
+      [],
+      1024,
+    );
+    expect(out.map((d) => d.label)).toEqual(["trash", "trash", "trash", "trash", "clothes"]);
+  });
+
+  it("prefers trash over snack on the same box", () => {
+    const out = cleanDetections(
+      [
+        { label: "snack", box: [0, 0, 80, 100] },
+        { label: "chip bag", box: [0, 0, 80, 100] },
+      ],
+      [],
+      1024,
+    );
+    expect(out.map((d) => d.label)).toEqual(["trash"]);
+  });
+
   it("maps a lone book to notebook", () => {
     expect(cleanDetections([{ label: "book", box: BOOK }], [], 1024)).toEqual([{ label: "notebook", box: BOOK }]);
   });

@@ -6,6 +6,7 @@ const INSIDE_ZONE = 0.7; // share of a box inside a zone box to count as stored
 const PRE_STORED_IOU = 0.5; // same spot as something that was already in a bin before
 const DESK = "desk"; // destinationZoneId the interview plan uses for keep-on-desk items
 const TOSS = "toss"; // destinationZoneId the interview plan uses for things to throw away
+const OFF_DESK = "off-desk"; // destinationZoneId for things that leave the desk (backpack, clothes)
 
 export type DetectionStatus = "putAway" | "keptOnDesk" | "stillOut" | "unmatched";
 
@@ -22,6 +23,7 @@ export interface Comparison {
   stillOut: Item[];
   keptOnDesk: Item[]; // still out, but the plan says they belong on the desk
   tossed: Item[]; // planned for "toss" and no longer seen
+  movedOff: Item[]; // planned for "off-desk" and no longer seen
   cantSee: Item[];
   detections: AfterDetection[]; // after-photo boxes, each with the status of its matched item
 }
@@ -64,7 +66,7 @@ export function compareAfter(
     d.inZone && preStored.some((p) => p.label === d.label && iou(p.box, d.box) >= PRE_STORED_IOU);
   const deskRule = hasPlan(original);
 
-  const result: Comparison = { putAway: [], stillOut: [], keptOnDesk: [], tossed: [], cantSee: [], detections };
+  const result: Comparison = { putAway: [], stillOut: [], keptOnDesk: [], tossed: [], movedOff: [], cantSee: [], detections };
   const labels = [...new Set(original.map((i) => i.label))];
 
   for (const label of labels) {
@@ -89,17 +91,19 @@ export function compareAfter(
         d.status = "putAway";
         d.itemId = item.id;
       } else if (item.destinationZoneId === TOSS) result.tossed.push(item);
+      else if (item.destinationZoneId === OFF_DESK) result.movedOff.push(item);
       else result.cantSee.push(item);
     }
   }
 
-  for (const list of [result.putAway, result.stillOut, result.keptOnDesk, result.tossed, result.cantSee]) {
+  for (const list of [result.putAway, result.stillOut, result.keptOnDesk, result.tossed, result.movedOff, result.cantSee]) {
     list.sort((a, b) => a.id - b.id);
   }
   return result;
 }
 
 function plural(label: string): string {
+  if (label === "trash") return "pieces of trash";
   return label.endsWith("s") ? label : `${label}s`;
 }
 
@@ -119,6 +123,7 @@ export function buildSummary(c: Comparison): string {
   const parts: string[] = [];
   if (c.putAway.length > 0) parts.push(`Put away: ${countList(c.putAway)}.`);
   if (c.tossed.length > 0) parts.push(`Tossed: ${countList(c.tossed)}.`);
+  if (c.movedOff.length > 0) parts.push(`Moved off the desk: ${countList(c.movedOff)}.`);
   if (c.keptOnDesk.length > 0) parts.push(`On the desk as planned: ${countList(c.keptOnDesk)}.`);
   if (c.stillOut.length > 0) parts.push(`Still out: ${idList(c.stillOut)}.`);
   if (c.cantSee.length > 0) parts.push(`Can't see: ${idList(c.cantSee)}.`);

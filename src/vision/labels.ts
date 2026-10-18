@@ -1,5 +1,7 @@
 // Shared item vocabulary (FR-DET-02). Keeps labels consistent across before/after photos.
-// "power adapter", "earbuds" and "receipt" are synonyms that cleanDetections maps to canonical labels.
+// "power adapter", "earbuds" and "receipt" are synonyms that cleanDetections maps to canonical labels,
+// as are "food wrapper", "chip bag", "soda can", "tissue" (→ "trash") and "clothing" (→ "clothes").
+// Concrete nouns detect far better than an abstract word like "trash", so ask for those and merge after.
 export const LABEL_VOCAB = [
   "charger",
   "power adapter",
@@ -17,6 +19,12 @@ export const LABEL_VOCAB = [
   "water bottle",
   "snack",
   "laptop",
+  "backpack",
+  "clothing",
+  "food wrapper",
+  "chip bag",
+  "soda can",
+  "tissue",
 ] as const;
 
 export type Label = (typeof LABEL_VOCAB)[number];

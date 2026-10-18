@@ -34,6 +34,19 @@ describe("fallbackPlan", () => {
   });
 });
 
+describe("fallbackPlan: trash, backpack, clothes", () => {
+  it("tosses trash and moves backpacks and clothes off the desk", () => {
+    const extra = [item(1, "trash"), item(2, "backpack"), item(3, "clothes"), item(4, "mug")];
+    const zoneOf = Object.fromEntries(fallbackPlan(extra, zones).map((p) => [p.itemId, p.zoneId]));
+    expect(zoneOf).toEqual({ 1: "toss", 2: "off-desk", 3: "off-desk", 4: "A" });
+  });
+
+  it("completePlan accepts the off-desk zone", () => {
+    const plan = completePlan([{ itemId: 2, zoneId: "off-desk", reason: "r" }], [item(2, "backpack")], zones);
+    expect(plan).toEqual([{ itemId: 2, zoneId: "off-desk", reason: "r" }]);
+  });
+});
+
 describe("completePlan", () => {
   it("drops unknown items and zones, adds missing items to the desk", () => {
     const plan = completePlan(

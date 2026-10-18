@@ -9,12 +9,14 @@ type ZoneRef = Pick<Zone, "id" | "label">;
 // Pseudo-zones every plan can use alongside the detected ones.
 const DESK: ZoneRef = { id: "desk", label: "desk" };
 const TOSS: ZoneRef = { id: "toss", label: "toss" };
+const OFF_DESK: ZoneRef = { id: "off-desk", label: "off the desk" };
 const MAX_LINES = 12;
 
 const RULES = `Rules:
 - Place every item exactly once.
 - Items with usage "daily" go to zoneId "desk".
-- Paper goes to zoneId "toss".
+- Paper and trash go to zoneId "toss".
+- Backpacks and clothes go to zoneId "off-desk".
 - Cables go to the same zone as the charger.
 - Pens go to the pen cup zone if there is one.
 - Everything else goes to a storage bin zone.
@@ -54,6 +56,9 @@ export function fallbackPlan(items: Item[], zones: ZoneRef[]): Placement[] {
     if (i.usage === "daily") return { itemId: i.id, zoneId: DESK.id, reason: "you use it every day" };
     // shortcut: receipts count as paper, add labels here if the vocab grows
     if (i.label === "paper" || i.label === "receipt") return { itemId: i.id, zoneId: TOSS.id, reason: "loose paper is clutter" };
+    if (i.label === "trash") return { itemId: i.id, zoneId: TOSS.id, reason: "it's trash" };
+    if (i.label === "backpack" || i.label === "clothes")
+      return { itemId: i.id, zoneId: OFF_DESK.id, reason: "too big for the desk bins" };
     if (i.label === "pen" && penCup) return { itemId: i.id, zoneId: penCup.id, reason: "keeps pens together" };
     return { itemId: i.id, zoneId: bin.id, reason: "stored out of the way" };
   };
@@ -68,7 +73,7 @@ export function fallbackPlan(items: Item[], zones: ZoneRef[]): Placement[] {
 
 /** Drop placements for unknown items/zones or duplicates; any item left unplaced goes to the desk. */
 export function completePlan(placements: Placement[], items: Item[], zones: ZoneRef[]): Placement[] {
-  const zoneIds = new Set([...zones.map((z) => z.id), DESK.id, TOSS.id]);
+  const zoneIds = new Set([...zones.map((z) => z.id), DESK.id, TOSS.id, OFF_DESK.id]);
   const byItem = new Map<number, Placement>();
   for (const p of placements)
     if (zoneIds.has(p.zoneId) && !byItem.has(p.itemId)) byItem.set(p.itemId, p);
@@ -78,7 +83,7 @@ export function completePlan(placements: Placement[], items: Item[], zones: Zone
 async function plan(items: Item[], zones: ZoneRef[]): Promise<Placement[]> {
   const prompt = `Plan where each item on this desk goes.
 Items: ${JSON.stringify(items.map(({ id, label, usage }) => ({ id, label, usage })))}
-Zones: ${JSON.stringify([...zones, DESK, TOSS])}
+Zones: ${JSON.stringify([...zones, DESK, TOSS, OFF_DESK])}
 ${RULES}`;
   try {
     const { value } = await json(prompt, planSchema, planValidator, { timeoutMs: 25_000 });
@@ -100,7 +105,8 @@ export const interview: PhaseHandler = async (session, msg) => {
   const placements = await plan(session.items, zones);
   const zoneName = (id: string) => {
     const z = zones.find((z) => z.id === id);
-    return z ? `${z.id} ${z.label}` : id;
+    if (z) return `${z.id} ${z.label}`;
+    return [DESK, TOSS, OFF_DESK].find((p) => p.id === id)?.label ?? id;
   };
 
   const lines: string[] = [];
