@@ -28,6 +28,7 @@ const SINGLE_OBJECT_LABELS = new Set([
   "water bottle",
   "backpack",
   "calculator",
+  "power bank",
   // A pair of glasses often comes back as two boxes, one per lens.
   "glasses",
 ]);
