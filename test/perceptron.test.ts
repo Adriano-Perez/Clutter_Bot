@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { detect, PerceptronError } from "../src/vision/perceptron.js";
+import { annotate, detect, gridToPixels, parseAnnotations, PerceptronError } from "../src/vision/perceptron.js";
 
 const IMAGE = "data:image/jpeg;base64,AAAA";
 const KEY = "test-secret-key";
@@ -107,5 +107,96 @@ describe("detect", () => {
     expect(err).toMatchObject({ status: 401, code: "invalid_api_key" });
     expect((err as Error).message).toContain("Invalid API key");
     expect((err as Error).message).not.toContain(KEY);
+  });
+});
+
+describe("annotate", () => {
+  beforeEach(() => {
+    vi.stubEnv("PERCEPTRON_API_KEY", KEY);
+    vi.stubEnv("PERCEPTRON_MODEL", "perceptron-mk1.5");
+    vi.spyOn(console, "log").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("sends a chat completion with polygon annotations and parses the answer", async () => {
+    const content = 'Here: <polygon mention="left bin" asset_idx="0"> (20,40) (60,40) (60,80) (20,80) </polygon>';
+    const fetchMock = vi.fn(async () => jsonResponse(200, { choices: [{ message: { role: "assistant", content } }] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await annotate(IMAGE, "Outline the bins");
+
+    expect(result.text).toBe(content);
+    expect(result.annotations).toEqual([
+      { kind: "polygon", mention: "left bin", points: [{ x: 20, y: 40 }, { x: 60, y: 40 }, { x: 60, y: 80 }, { x: 20, y: 80 }] },
+    ]);
+
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("https://api.perceptron.inc/v1/chat/completions");
+    expect((init.headers as Record<string, string>).Authorization).toBe(`Bearer ${KEY}`);
+    expect(JSON.parse(init.body as string)).toEqual({
+      model: "perceptron-mk1.5",
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "image_url", image_url: { url: IMAGE } },
+            { type: "text", text: "Outline the bins" },
+          ],
+        },
+      ],
+      vision_config: { annotation_format: "polygon" },
+      reasoning_effort: "none",
+      max_completion_tokens: 2048,
+    });
+  });
+});
+
+describe("parseAnnotations", () => {
+  it("pulls polygon, point_box and point tags out of prose", () => {
+    const text = [
+      "I can see a few storage spots.",
+      '<polygon mention="left bin" asset_idx="0"> (20,40) (60,40) (60,80) (20,80) </polygon>',
+      'There is also <point_box mention="pen cup" asset_idx="0"> (100,120) (180,260) </point_box> on the right,',
+      'and the desk <point mention="open desk area"> (500.5,700) </point>.',
+    ].join("\n");
+
+    expect(parseAnnotations(text)).toEqual([
+      {
+        kind: "polygon",
+        mention: "left bin",
+        points: [
+          { x: 20, y: 40 },
+          { x: 60, y: 40 },
+          { x: 60, y: 80 },
+          { x: 20, y: 80 },
+        ],
+      },
+      {
+        kind: "point_box",
+        mention: "pen cup",
+        points: [
+          { x: 100, y: 120 },
+          { x: 180, y: 260 },
+        ],
+      },
+      { kind: "point", mention: "open desk area", points: [{ x: 500.5, y: 700 }] },
+    ]);
+  });
+
+  it("skips tags without coordinates and returns [] for plain prose", () => {
+    expect(parseAnnotations('<polygon mention="shelf"> </polygon>')).toEqual([]);
+    expect(parseAnnotations("No storage visible.")).toEqual([]);
+  });
+});
+
+describe("gridToPixels", () => {
+  it("scales the 0-1000 grid to image pixels", () => {
+    expect(gridToPixels({ x: 500, y: 500 }, 1024, 683)).toEqual({ x: 512, y: 341.5 });
+    expect(gridToPixels({ x: 0, y: 1000 }, 1024, 683)).toEqual({ x: 0, y: 683 });
   });
 });

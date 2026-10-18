@@ -81,4 +81,31 @@ describe("cleanDetections", () => {
     );
     expect(out.map((d) => d.label)).toEqual(["charger", "headphones", "paper"]);
   });
+
+  it("maps a lone book to notebook", () => {
+    expect(cleanDetections([{ label: "book", box: BOOK }], [])).toEqual([{ label: "notebook", box: BOOK }]);
+  });
+
+  it("drops a cable that is really the headphones' cord", () => {
+    const headphones = { label: "headphones", box: [551, 168, 634, 220] as Box };
+    const cord = { label: "cable", box: [571, 185, 709, 263] as Box };
+    const looseCable = { label: "cable", box: [10, 500, 200, 600] as Box };
+
+    const out = cleanDetections([cord, headphones, looseCable], []);
+
+    expect(out).toEqual([headphones, looseCable]);
+  });
+
+  it("does not treat the open desk area as a container", () => {
+    const desk: ZonePolygon = {
+      label: "open desk area",
+      polygon: [
+        [10, 0],
+        [160, 0],
+        [160, 150],
+        [10, 150],
+      ],
+    };
+    expect(cleanDetections([{ label: "pen", box: PEN_CUP }], [desk])).toHaveLength(1);
+  });
 });

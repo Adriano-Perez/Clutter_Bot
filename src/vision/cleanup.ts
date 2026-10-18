@@ -6,17 +6,23 @@ export interface LabeledBox {
 }
 
 export interface ZonePolygon {
+  label?: string;
   polygon: readonly (readonly [number, number])[];
 }
 
 const DUPLICATE_IOU = 0.85;
 const CONTAINER_IOU = 0.6;
+const CORD_IOU = 0.2;
+
+// Open surfaces are zones too, but nothing detected on them is the surface itself.
+const NOT_A_CONTAINER = /desk|surface/i;
 
 // Rule c: synonyms the vocabulary asks for, mapped back to one canonical label.
 const SYNONYMS: Record<string, string> = {
   "power adapter": "charger",
   "phone charger": "charger",
   earbuds: "headphones",
+  book: "notebook",
   receipt: "paper",
 };
 
@@ -42,6 +48,14 @@ function boundingBox(polygon: ZonePolygon["polygon"]): Box {
   return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
 }
 
+function containsPoint([x1, y1, x2, y2]: Box, { x, y }: { x: number; y: number }): boolean {
+  return x >= x1 && x <= x2 && y >= y1 && y <= y2;
+}
+
+function centerOf([x1, y1, x2, y2]: Box): { x: number; y: number } {
+  return { x: (x1 + x2) / 2, y: (y1 + y2) / 2 };
+}
+
 function prefers(label: string, over: string): boolean {
   return PREFERRED_OVER[label]?.includes(over) ?? false;
 }
@@ -57,6 +71,16 @@ export function cleanDetections<T extends LabeledBox>(detections: readonly T[], 
     else if (prefers(d.label, deduped[i]!.label)) deduped[i] = d;
   }
 
-  const zoneBoxes = zones.filter((z) => z.polygon.length > 0).map((z) => boundingBox(z.polygon));
-  return deduped.filter((d) => !zoneBoxes.some((zb) => iou(d.box, zb) >= CONTAINER_IOU));
+  // An earbud cord is part of the headphones, not a separate cable.
+  const headphones = deduped.filter((d) => d.label === "headphones").map((d) => d.box);
+  const withoutCords = deduped.filter(
+    (d) =>
+      d.label !== "cable" ||
+      !headphones.some((h) => iou(d.box, h) >= CORD_IOU || containsPoint(d.box, centerOf(h))),
+  );
+
+  const zoneBoxes = zones
+    .filter((z) => z.polygon.length > 0 && !NOT_A_CONTAINER.test(z.label ?? ""))
+    .map((z) => boundingBox(z.polygon));
+  return withoutCords.filter((d) => !zoneBoxes.some((zb) => iou(d.box, zb) >= CONTAINER_IOU));
 }

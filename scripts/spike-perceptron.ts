@@ -4,16 +4,21 @@ import "dotenv/config";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { parseArgs } from "node:util";
-import { cleanDetections, type LabeledBox, type ZonePolygon } from "../src/vision/cleanup.js";
-import { LABEL_VOCAB } from "../src/vision/labels.js";
+import { cleanDetections, type LabeledBox } from "../src/vision/cleanup.js";
+import { LABEL_VOCAB, ZONE_PROMPT } from "../src/vision/labels.js";
 import { normalizePhoto } from "../src/vision/normalize.js";
-import { numberItems, renderDetections, type Box } from "../src/vision/overlay.js";
-import { detect, PerceptronError, type DetectOptions, type DetectResult } from "../src/vision/perceptron.js";
+import { numberItems, renderDetections, type Box, type OverlayZone } from "../src/vision/overlay.js";
+import {
+  annotate,
+  detect,
+  gridToPixels,
+  PerceptronError,
+  type AnnotateResult,
+  type DetectOptions,
+  type DetectResult,
+} from "../src/vision/perceptron.js";
 
 const OUT_DIR = "out";
-
-// FR-DET-03 storage zones, plus "pen cup" so containers detected as items can be filtered out.
-const ZONE_CATEGORIES = ["bin", "drawer", "shelf", "tray", "open desk area", "pen cup"];
 
 interface Call {
   name: string;
@@ -21,11 +26,35 @@ interface Call {
 }
 
 const itemsCall: Call = { name: "a-vocab-none", options: { categories: [...LABEL_VOCAB], reasoningEffort: "none" } };
-const zonesCall: Call = { name: "zones-none", options: { categories: ZONE_CATEGORIES, reasoningEffort: "none" } };
 const comparisonCalls: Call[] = [
   { name: "b-open-none", options: { reasoningEffort: "none" } },
   { name: "c-open-low", options: { reasoningEffort: "low", timeoutMs: 40_000 } },
 ];
+
+type Zone = OverlayZone & { label: string };
+
+// Polygons (and any boxes) on the 0-1000 grid → pixel polygons, lettered A, B, C… left to right.
+function toZones(result: AnnotateResult, width: number, height: number): Zone[] {
+  const shapes = result.annotations.flatMap(({ kind, mention, points }) => {
+    const px = points.map((p) => gridToPixels(p, width, height));
+    let polygon: [number, number][];
+    if (kind === "polygon" && px.length >= 3) polygon = px.map(({ x, y }) => [x, y]);
+    else if (kind === "point_box" && px.length === 2) {
+      const [a, b] = px as [{ x: number; y: number }, { x: number; y: number }];
+      polygon = [
+        [a.x, a.y],
+        [b.x, a.y],
+        [b.x, b.y],
+        [a.x, b.y],
+      ];
+    } else return [];
+    const xs = polygon.map(([x]) => x);
+    return [{ label: mention ?? "zone", polygon, centerX: (Math.min(...xs) + Math.max(...xs)) / 2 }];
+  });
+  return shapes
+    .sort((a, b) => a.centerX - b.centerX)
+    .map(({ label, polygon }, i) => ({ id: String.fromCharCode(65 + i), label, polygon }));
+}
 
 type Timing = { call: string; items: number | string; ms: number | string; finish: string };
 
@@ -88,34 +117,51 @@ async function main(): Promise<void> {
     }
   }
 
+  async function runZones(): Promise<Zone[] | undefined> {
+    const name = "zones";
+    const outFile = path.join(OUT_DIR, `${photoName}.${name}.json`);
+    const lines = [`\n--- ${name} (annotate, polygon) ---`];
+    try {
+      const result = await annotate(photo.dataUrl, ZONE_PROMPT, { format: "polygon", reasoningEffort: "none" });
+      await writeFile(outFile, JSON.stringify(result, null, 2));
+      const zones = toZones(result, photo.width, photo.height);
+      lines.push(`zones: ${zones.length}`);
+      for (const z of zones) lines.push(`  ${z.id}  ${z.label}  (${z.polygon.length} points)`);
+      lines.push(`ms: ${result.ms}`);
+      timings.push({ call: name, items: zones.length, ms: result.ms, finish: "-" });
+      return zones;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      lines.push(`failed: ${message}`);
+      const raw = err instanceof PerceptronError ? err.raw : undefined;
+      const saved = raw === undefined ? { error: message } : { error: message, raw };
+      await writeFile(outFile, JSON.stringify(saved, null, 2));
+      timings.push({ call: name, items: "-", ms: "-", finish: "error" });
+      return undefined;
+    } finally {
+      lines.push(`saved ${outFile}`);
+      console.log(lines.join("\n"));
+    }
+  }
+
   const start = performance.now();
-  const [itemsResult, zonesResult] = await Promise.all([runCall(itemsCall), runCall(zonesCall)]);
+  const [itemsResult, zones] = await Promise.all([runCall(itemsCall), runZones()]);
   const wallMs = Math.round(performance.now() - start);
   timings.push({ call: "items+zones wall", items: "-", ms: wallMs, finish: "-" });
 
   for (const call of comparisonCalls) await runCall(call);
 
   if (itemsResult) {
-    const zones: ZonePolygon[] = zonesResult
-      ? toBoxes(zonesResult).map(({ box: [x1, y1, x2, y2] }) => ({
-          polygon: [
-            [x1, y1],
-            [x2, y1],
-            [x2, y2],
-            [x1, y2],
-          ],
-        }))
-      : [];
-    if (!zonesResult) console.log("\nzones call failed: container filter skipped");
+    if (!zones) console.log("\nzones call failed: container filter skipped");
 
     const before = toBoxes(itemsResult);
-    const after = cleanDetections(before, zones);
+    const after = cleanDetections(before, zones ?? []);
     console.log(`\nbefore cleanup (${before.length}):\n${formatBoxes(before)}`);
     console.log(`after cleanup (${after.length}):\n${formatBoxes(after)}`);
 
     const numbered = numberItems(after);
     const overlayFile = path.join(OUT_DIR, `${photoName}.overlay.png`);
-    await writeFile(overlayFile, await renderDetections(photo.buf, photo.width, photo.height, numbered));
+    await writeFile(overlayFile, await renderDetections(photo.buf, photo.width, photo.height, numbered, zones));
     console.log(`\nsaved ${overlayFile}: ${numbered.map((i) => `${i.id} ${i.label}`).join(", ") || "(no boxes)"}`);
   } else {
     console.log("\nno overlay: the items call failed");
