@@ -4,7 +4,7 @@ import type { Session } from "./types.js";
 export function newSession(userHandle: string): Session {
   const now = new Date().toISOString();
   return {
-    id: randomUUID().slice(0, 8),
+    id: randomUUID().replaceAll("-", ""),
     userHandle,
     phase: "awaiting_photo",
     afterPhotos: [],

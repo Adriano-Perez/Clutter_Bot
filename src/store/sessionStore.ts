@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import Database from "better-sqlite3";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
@@ -28,6 +29,15 @@ export class SqliteSessionStore implements SessionStore {
       CREATE TABLE IF NOT EXISTS sessions (user_handle TEXT PRIMARY KEY, json TEXT NOT NULL, updated_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS events_seen (event_id TEXT PRIMARY KEY, seen_at TEXT NOT NULL);
     `);
+    // Rotate legacy 32-bit photo links before exposing this server through a public tunnel.
+    const legacy = this.db.prepare("SELECT user_handle, json FROM sessions WHERE length(json_extract(json, '$.id')) = 8")
+      .all() as { user_handle: string; json: string }[];
+    for (const row of legacy) {
+      const session = JSON.parse(row.json) as Session;
+      session.id = randomUUID().replaceAll("-", "");
+      this.save(session);
+    }
+    this.db.exec("CREATE INDEX IF NOT EXISTS sessions_id ON sessions (json_extract(json, '$.id'))");
   }
 
   get(userHandle: string) {

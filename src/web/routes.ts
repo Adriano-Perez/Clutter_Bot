@@ -1,12 +1,12 @@
 import { Hono } from "hono";
-import { readFile } from "node:fs/promises";
+import { readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 import type { SessionStore } from "../store/sessionStore.js";
 import type { Session } from "../types.js";
 import { notFoundPage, planPage } from "./page.js";
 
 const MEDIA_DIR = path.resolve("data/media");
-const SESSION_ID = /^[0-9a-f]{8}$/;
+const SESSION_ID = /^[0-9a-f]{32}$/;
 
 /** The annotated image for each side of the run, or undefined when there isn't one yet. */
 export function overlayPath(session: Session, which: "before" | "after"): string | undefined {
@@ -16,7 +16,7 @@ export function overlayPath(session: Session, which: "before" | "after"): string
   return path.join(dir, `${name}.${which === "before" ? "overlay" : "verify"}.png`);
 }
 
-/** True only for a path that really sits inside data/media, after symlinks and ".." are resolved. */
+/** True only for a path that really sits inside data/media, after ".." is resolved (the route also resolves symlinks). */
 export function insideMediaDir(file: string): boolean {
   const resolved = path.resolve(file);
   return resolved === MEDIA_DIR || resolved.startsWith(MEDIA_DIR + path.sep);
@@ -30,6 +30,13 @@ export function insideMediaDir(file: string): boolean {
  */
 export function planRoutes(store: SessionStore): Hono {
   const app = new Hono();
+  app.use("/s/*", async (c, next) => {
+    c.header("Cache-Control", "no-store");
+    c.header("Referrer-Policy", "no-referrer");
+    c.header("X-Content-Type-Options", "nosniff");
+    c.header("Content-Security-Policy", "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; frame-ancestors 'none'");
+    await next();
+  });
 
   app.get("/s/:id", (c) => {
     const id = c.req.param("id");
@@ -50,8 +57,10 @@ export function planRoutes(store: SessionStore): Hono {
     if (!file || !insideMediaDir(file)) return c.notFound();
 
     try {
-      const bytes = await readFile(file);
-      return c.body(bytes, 200, { "Content-Type": "image/png", "Cache-Control": "private, max-age=60" });
+      const resolved = await realpath(file);
+      if (!insideMediaDir(resolved)) return c.notFound();
+      const bytes = await readFile(resolved);
+      return c.body(bytes, 200, { "Content-Type": "image/png", "Cache-Control": "no-store" });
     } catch {
       return c.notFound();
     }

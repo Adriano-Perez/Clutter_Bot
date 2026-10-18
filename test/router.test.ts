@@ -31,7 +31,7 @@ test("new sender gets an awaiting_photo session", async () => {
   await router.route(msg("e1"));
   const s = store.get("+12065550142")!;
   expect(s.phase).toBe("awaiting_photo");
-  expect(s.id).toMatch(/^[0-9a-f]{8}$/);
+  expect(s.id).toMatch(/^[0-9a-f]{32}$/);
 });
 
 test("dispatch picks the handler for the session phase", async () => {
