@@ -7,6 +7,11 @@ export interface SessionStore {
   get(userHandle: string): Session | undefined;
   /** Looks a session up by its short slug, for the /s/:id page. */
   getById(id: string): Session | undefined;
+  /**
+   * Sessions whose phone number ends in these digits. Used by the voice tools when the call has
+   * no caller ID; returns every match so an ambiguous one can be refused rather than guessed.
+   */
+  findByLast4(last4: string): Session[];
   save(session: Session): void;
   reset(userHandle: string): void;
   /** Records an event ID; returns false if it was already seen (NFR-GW-02). */
@@ -28,6 +33,13 @@ export class SqliteSessionStore implements SessionStore {
   get(userHandle: string) {
     const row = this.db.prepare("SELECT json FROM sessions WHERE user_handle = ?").get(userHandle) as { json: string } | undefined;
     return row && (JSON.parse(row.json) as Session);
+  }
+
+  findByLast4(last4: string) {
+    const rows = this.db
+      .prepare("SELECT json FROM sessions WHERE replace(replace(replace(user_handle, '+', ''), '-', ''), ' ', '') LIKE ?")
+      .all(`%${last4}`) as { json: string }[];
+    return rows.map((r) => JSON.parse(r.json) as Session);
   }
 
   getById(id: string) {
