@@ -137,10 +137,28 @@ describe("overlayItems", () => {
     );
 
     expect(overlayItems(c)).toEqual([
-      { id: 2, box: mug.box, color: GREEN },
-      { id: 1, box: [40, 330, 100, 400], color: GREEN },
-      { id: 3, box: keys.box, color: RED },
+      { id: 2, box: mug.box, color: GREEN, shape: "circle" },
+      { id: 1, box: [40, 330, 100, 400], color: GREEN, shape: "circle" },
+      { id: 3, box: keys.box, color: RED, shape: "square" },
     ]);
+  });
+
+  it("carries the verdict in the badge shape as well as the colour", () => {
+    // Red and green are the pair most often confused, so the overlay has to work without colour.
+    const planned = [item(1, "charger", charger.box, "A"), item(3, "keys", keys.box, "A")];
+    const c = compareAfter(
+      planned,
+      [
+        { label: "charger", box: [40, 330, 100, 400] },
+        { label: "keys", box: keys.box },
+      ],
+      [BIN],
+    );
+
+    const shapes = Object.fromEntries(overlayItems(c).map((o) => [o.id, o.shape]));
+    expect(shapes).toEqual({ 1: "circle", 3: "square" });
+    // Strip the colour entirely and the two verdicts are still distinguishable.
+    expect(new Set(Object.values(shapes)).size).toBe(2);
   });
 
   it("counts a missing off-desk item as moved off, and says the desk is clear", () => {
