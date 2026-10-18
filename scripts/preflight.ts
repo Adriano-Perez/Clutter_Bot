@@ -34,7 +34,7 @@ if (process.env.PUBLIC_BASE_URL) {
 if (process.argv.includes("--live")) {
   try {
     const project = await cloud.getProject(process.env.PROJECT_ID!, process.env.PROJECT_SECRET!);
-    const routing = await cloud.getImessageInfo(process.env.PROJECT_ID!);
+    const routing = await cloud.issueImessageTokens(process.env.PROJECT_ID!, process.env.PROJECT_SECRET!);
     check("Photon credentials", true, `${project.name}; ${routing.type} routing`);
     if (routing.type === "shared") console.log("INFO Each tester must be enrolled and text their own assigned number (see DEMO.md).");
   } catch (error) {
