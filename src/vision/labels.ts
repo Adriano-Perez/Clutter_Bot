@@ -29,6 +29,30 @@ export const LABEL_VOCAB = [
 
 export type Label = (typeof LABEL_VOCAB)[number];
 
+// The labels that actually reach a session, i.e. what survives cleanDetections: every vocabulary
+// entry that isn't a synonym, plus the canonical names the synonyms map to. Used to recognise the
+// item in "where does the charger go?". A test in cleanup.test.ts keeps this in step with SYNONYMS.
+export const CANONICAL_LABELS = [
+  "charger",
+  "cable",
+  "phone",
+  "notebook",
+  "pen",
+  "mug",
+  "headphones",
+  "paper",
+  "keys",
+  "wallet",
+  "water bottle",
+  "snack",
+  "laptop",
+  "backpack",
+  "clothes",
+  "trash",
+] as const;
+
+export type CanonicalLabel = (typeof CANONICAL_LABELS)[number];
+
 // FR-DET-03: storage-zone categories for /v1/detect. No "mug" here: a mug is always an item.
 export const ZONE_CATEGORIES = ["storage bin", "box", "pen cup", "cup", "drawer", "tray"] as const;
 

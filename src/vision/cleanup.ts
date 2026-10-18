@@ -39,7 +39,7 @@ const ABSORBS: Record<string, readonly string[]> = {
 const CONTAINER_ZONES = new Set(["pen cup", "cup"]);
 
 // Rule c: synonyms the vocabulary asks for, mapped back to one canonical label.
-const SYNONYMS: Record<string, string> = {
+export const SYNONYMS: Record<string, string> = {
   "power adapter": "charger",
   "phone charger": "charger",
   earbuds: "headphones",

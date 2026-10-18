@@ -1,4 +1,5 @@
-import { isPhoto, resetSession, type PhaseHandler } from "../router.js";
+import { isPhoto, type PhaseHandler } from "../router.js";
+import { resetSession } from "../session.js";
 import { awaitingPhoto } from "./awaitingPhoto.js";
 
 // Phase "complete": a new photo starts a fresh session and runs exactly like the first photo.

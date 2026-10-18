@@ -51,6 +51,20 @@ test("ping replies pong without dispatching", async () => {
   expect(sent).toEqual([{ type: "text", text: "pong" }]);
 });
 
+test("global commands answer without dispatching, in any phase", async () => {
+  const { router, store, guiding, sent, msg } = setup();
+  await router.route(msg("e1"));
+  store.save({ ...store.get("+12065550142")!, phase: "guiding" });
+
+  await router.route(msg("e2", "help"));
+  await router.route(msg("e3", "status"));
+  await router.route(msg("e4", "where does the pen go?"));
+
+  expect(guiding).not.toHaveBeenCalled();
+  expect(sent.slice(1)).toHaveLength(3);
+  expect(sent.at(-1)).toMatchObject({ text: expect.stringMatching(/pen cup/i) });
+});
+
 test("start over replaces the session with a fresh one", async () => {
   const { router, store, sent, msg } = setup();
   await router.route(msg("e1"));
