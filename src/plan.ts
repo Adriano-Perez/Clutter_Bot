@@ -1,4 +1,4 @@
-import type { Item, Zone } from "./types.js";
+import type { Item, Step, Zone } from "./types.js";
 
 export type ZoneRef = Pick<Zone, "id" | "label">;
 export type Placement = { itemId: number; zoneId: string; reason: string };
@@ -127,6 +127,55 @@ export function groupLine({ name, items, reason }: PlanGroup): string {
 export function planMessage(groups: readonly PlanGroup[]): string {
   if (groups.length === 0) return "I couldn't work out a plan for this one. Try 'start over' and send a fresh photo.";
   return ["Here's where everything goes:", "", ...groups.map(groupLine)].join("\n");
+}
+
+/** What to physically do with one item, in words. */
+export function instructionFor(item: Item, zones: readonly ZoneRef[]): string {
+  const what = `the ${item.label} (${item.id})`;
+  switch (item.destinationZoneId) {
+    case TOSS.id:
+      return `Throw away ${what}.`;
+    case OFF_DESK.id:
+      return `Take ${what} off the desk.`;
+    case DESK.id:
+      return `Leave ${what} where it is.`;
+    default:
+      return `Put ${what} in ${zoneName(zones, item.destinationZoneId ?? "")}.`;
+  }
+}
+
+/**
+ * One step per item that actually has to move, in the order the plan reads (FR-PLAN-06).
+ *
+ * Items staying on the desk get no step: "leave it alone" isn't a task. Steps are grouped by
+ * destination, so you deal with one bin at a time instead of walking back and forth.
+ */
+export function buildSteps(items: readonly Item[], zones: readonly ZoneRef[]): Step[] {
+  return groupPlan(items, zones)
+    .filter((group) => group.zoneId !== DESK.id)
+    .flatMap((group) => group.items)
+    .map((item, index) => ({ n: index + 1, itemId: item.id, instruction: instructionFor(item, zones), done: false }));
+}
+
+/**
+ * FR-PLAN-07: "A is full". Moves every *undone* item out of that zone and leaves done ones alone,
+ * so the work already finished is never undone by a re-plan. Returns the items that moved.
+ */
+export function replanAwayFrom(
+  items: readonly Item[],
+  zones: readonly ZoneRef[],
+  blockedZoneId: string,
+  isDone: (itemId: number) => boolean,
+): { moved: Item[]; to: ZoneRef } {
+  const alternatives = zones.filter((z) => z.id !== blockedZoneId);
+  const to = alternatives.find((z) => z.label === "storage bin") ?? alternatives[0] ?? DESK;
+
+  const moved = items.filter((i) => i.destinationZoneId === blockedZoneId && !isDone(i.id));
+  for (const item of moved) {
+    item.destinationZoneId = to.id;
+    item.reason = to.id === DESK.id ? "nowhere else to put it" : `${blockedZoneId} was full`;
+  }
+  return { moved, to };
 }
 
 /**

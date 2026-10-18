@@ -1,6 +1,15 @@
 import type { Reply } from "./router.js";
-import type { Item, Session } from "./types.js";
-import { NEXT_STEP, fallbackPlan, groupPlan, planMessage, zoneName } from "./plan.js";
+import type { Item, Session, Step } from "./types.js";
+import {
+  NEXT_STEP,
+  buildSteps,
+  fallbackPlan,
+  groupPlan,
+  instructionFor,
+  planMessage,
+  replanAwayFrom,
+  zoneName,
+} from "./plan.js";
 import { resetSession } from "./session.js";
 import { CANONICAL_LABELS } from "./vision/labels.js";
 
@@ -22,7 +31,8 @@ export const HELP = `I'm ClutterBot. I tell you where everything on your desk go
 4. I tell you where each thing goes.
 5. Put it all away, send another photo, and I'll check your work.
 
-Any time: status · where does the pen go? · start over
+Any time: status · where does the pen go? · 3 is a mug · start over
+Once you have a plan: next · done · A is full
 I know about ${CANONICAL_LABELS.length} kinds of desk item. ${HONESTY}`;
 
 export function statusText(session: Session): string {
@@ -36,7 +46,12 @@ export function statusText(session: Session): string {
       return `I found ${count(items.length, "thing", "things")} in your photo. Tell me which numbers you use every day — like "2 5" — or say skip.`;
     case "planned": {
       const toMove = items.filter((i) => i.destinationZoneId && i.destinationZoneId !== "desk").length;
-      return `Your plan is ready: ${count(toMove, "thing", "things")} to move. Put them away, then send me another photo and I'll check. ${HONESTY}`;
+      const claimed = session.steps.filter((s) => s.done).length;
+      const progress = claimed > 0 ? ` You've told me ${claimed} of ${session.steps.length} are done.` : "";
+      return (
+        `Your plan is ready: ${count(toMove, "thing", "things")} to move.${progress}` +
+        ` Say "next" for one step at a time, or put it all away and send me another photo. ${HONESTY}`
+      );
     }
     case "complete":
       return "Your desk was clear last time I looked. Send a new photo to go again.";
@@ -102,6 +117,80 @@ export function whereDoesText(session: Session, raw: string): string {
   return 'Tell me which one — a number from the photo, like "where does 3 go?", or a thing, like "where does the pen go?".';
 }
 
+const NEXT_WORDS = new Set(["next", "what next", "next step", "go"]);
+const DONE_WORDS = new Set(["done", "ok done", "did it", "next done"]);
+// "A is full", "bin B is full"
+const FULL_RE = /^(?:the\s+)?(?:bin\s+|zone\s+)?([a-z])\s+is\s+full$/i;
+
+const ALL_DONE = "That's everything. Send me a photo and I'll check your work.";
+
+function stepLine(step: Step, total: number): string {
+  return `Step ${step.n} of ${total}: ${step.instruction}`;
+}
+
+/** Makes sure the session has steps, building them from the plan the first time they're asked for. */
+function steps(session: Session): Step[] {
+  if (session.steps.length === 0 && session.items.some((i) => i.destinationZoneId)) {
+    session.steps = buildSteps(session.items, session.zones);
+  }
+  return session.steps;
+}
+
+function nextStep(session: Session): Reply[] {
+  const all = steps(session);
+  const step = all.find((s) => !s.done);
+  if (!step) return text(ALL_DONE);
+  return text(stepLine(step, all.length));
+}
+
+function markDone(session: Session): Reply[] {
+  const all = steps(session);
+  const step = all.find((s) => !s.done);
+  if (!step) return text(ALL_DONE);
+
+  step.done = true;
+  const item = session.items.find((i) => i.id === step.itemId);
+  // FR-VER-02: the user says they did it. That's a claim, not something I've seen.
+  item?.evidence.push({ state: "claimed", source: "user_text", at: new Date().toISOString() });
+
+  const finished = all.filter((s) => s.done).length;
+  const remaining = all.find((s) => !s.done);
+  const progress = `Nice — ${finished} of ${all.length} done.`;
+  return text(remaining ? `${progress}\n${stepLine(remaining, all.length)}` : `${progress}\n${ALL_DONE}`);
+}
+
+function zoneFull(session: Session, letter: string): Reply[] {
+  const zoneId = letter.toUpperCase();
+  const zone = session.zones.find((z) => z.id === zoneId);
+  if (!zone) return text(`I don't have a ${zoneId} in this photo.`);
+
+  const all = steps(session);
+  const doneItems = new Set(all.filter((s) => s.done).map((s) => s.itemId));
+  const zones = session.zones.map(({ id, label }) => ({ id, label }));
+  const { moved, to } = replanAwayFrom(session.items, zones, zoneId, (id) => doneItems.has(id));
+
+  zone.full = true;
+  if (moved.length === 0) return text(`Nothing left to move out of ${zoneId} ${zone.label}.`);
+
+  // Rebuild only the steps that aren't done, so finished work keeps its place in the list.
+  const movedIds = new Set(moved.map((i) => i.id));
+  for (const step of all) {
+    if (step.done || !movedIds.has(step.itemId)) continue;
+    const item = session.items.find((i) => i.id === step.itemId)!;
+    step.instruction = instructionFor(item, zones);
+  }
+
+  const what = moved.map((i) => `${i.id} ${i.label}`).join(", ");
+  const where = to.id === "desk" ? "left on the desk" : `moved to ${zoneName(zones, to.id)}`;
+  return text([`${zoneId} ${zone.label} is full — ${what} ${where}.`, "", nextStepText(session)].join("\n"));
+}
+
+function nextStepText(session: Session): string {
+  const all = session.steps;
+  const step = all.find((s) => !s.done);
+  return step ? stepLine(step, all.length) : ALL_DONE;
+}
+
 // "3 is a power bank", "number 3 is actually my calculator", "3 = mug".
 // Two digits at most, so a phone number can't look like a correction.
 const CORRECTION_RE =
@@ -156,6 +245,8 @@ function correctionReply(session: Session, { id, said }: { id: number; said: str
     item.destinationZoneId = replacement.zoneId;
     item.reason = replacement.reason;
   }
+  // The steps describe the old plan, so drop them; "next" rebuilds from the new one.
+  session.steps = [];
 
   return text(
     [
@@ -185,6 +276,16 @@ export function handleCommand(session: Session, raw: string): Reply[] | undefine
   }
   // "where does the pen go?", "where do my keys go", "where does 3 go"
   if (/\bwhere\b/i.test(t)) return text(whereDoesText(session, raw));
+
+  // Step-by-step guidance, only once a plan exists. "done" and "next" are ordinary words
+  // everywhere else, so outside this phase they go to the handler untouched.
+  if (session.phase === "planned") {
+    if (NEXT_WORDS.has(t)) return nextStep(session);
+    if (DONE_WORDS.has(t)) return markDone(session);
+
+    const full = FULL_RE.exec(t);
+    if (full) return zoneFull(session, full[1]!);
+  }
 
   // "3 is a power bank" — only once there are numbered items to correct.
   const correction = session.items.length > 0 ? parseCorrection(raw) : undefined;
