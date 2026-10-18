@@ -6,15 +6,18 @@ export type Placement = { itemId: number; zoneId: string; reason: string };
 // Pseudo-zones every plan can use alongside the zones detected in the photo.
 export const DESK: ZoneRef = { id: "desk", label: "desk" };
 export const TOSS: ZoneRef = { id: "toss", label: "toss" };
-export const OFF_DESK: ZoneRef = { id: "off-desk", label: "off the desk" };
-export const PSEUDO_ZONES: readonly ZoneRef[] = [DESK, TOSS, OFF_DESK];
+export const OFF_DESK: ZoneRef = { id: "off-desk", label: "out of the way" };
+/** Dirty crockery doesn't belong in a bedroom bin, however tidy that would look. */
+export const KITCHEN: ZoneRef = { id: "kitchen", label: "the kitchen" };
+export const PSEUDO_ZONES: readonly ZoneRef[] = [DESK, TOSS, OFF_DESK, KITCHEN];
 
 // How each destination reads in a message. Detected zones keep their letter, so "B pen cup"
 // matches the letter drawn on the overlay.
 const PSEUDO_HEADINGS: Record<string, string> = {
-  [DESK.id]: "Stays on your desk",
+  [DESK.id]: "Stays where it is",
   [TOSS.id]: "Toss",
-  [OFF_DESK.id]: "Off the desk",
+  [OFF_DESK.id]: "Out of the way",
+  [KITCHEN.id]: "Take to the kitchen",
 };
 
 /** "B pen cup" for a detected zone, "Toss" for a pseudo-zone, the raw id if neither is known. */
@@ -32,15 +35,44 @@ export const NEXT_STEP = "Put it all away, then send me another photo and I'll c
  * item after the user corrects its label, where spending another model call isn't worth it.
  */
 export function fallbackPlan(items: Item[], zones: ZoneRef[]): Placement[] {
-  const penCup = zones.find((z) => z.label === "pen cup");
-  const bin = zones.find((z) => z.label === "storage bin") ?? zones[0] ?? DESK;
+  /** The first zone actually found in the photo whose label is one of these, in order. */
+  const prefer = (...labels: string[]): ZoneRef | undefined => {
+    for (const label of labels) {
+      const found = zones.find((z) => z.label === label);
+      if (found) return found;
+    }
+    return undefined;
+  };
+
+  const penCup = prefer("pen cup");
+  const wardrobe = prefer("closet", "dresser", "laundry basket");
+  const shelf = prefer("bookshelf", "shelf");
+  const bin = prefer("storage bin", "box", "drawer", "shelf", "bookshelf", "dresser", "closet") ?? zones[0] ?? DESK;
+
   const place = (i: Item): Placement => {
     if (i.usage === "daily") return { itemId: i.id, zoneId: DESK.id, reason: "you use it every day" };
     // shortcut: receipts count as paper, add labels here if the vocab grows
     if (i.label === "paper" || i.label === "receipt") return { itemId: i.id, zoneId: TOSS.id, reason: "loose paper is clutter" };
     if (i.label === "trash") return { itemId: i.id, zoneId: TOSS.id, reason: "it's trash" };
-    if (i.label === "backpack" || i.label === "clothes")
-      return { itemId: i.id, zoneId: OFF_DESK.id, reason: "too big for the desk bins" };
+
+    // Crockery goes to the sink, not into a bedroom bin.
+    if (i.label === "mug" || i.label === "plate" || i.label === "bowl")
+      return { itemId: i.id, zoneId: KITCHEN.id, reason: "it needs washing up" };
+
+    if (i.label === "clothes")
+      return wardrobe
+        ? { itemId: i.id, zoneId: wardrobe.id, reason: `clothes belong in the ${wardrobe.label}` }
+        : { itemId: i.id, zoneId: OFF_DESK.id, reason: "nowhere here to hang it" };
+    if (i.label === "shoes")
+      return wardrobe
+        ? { itemId: i.id, zoneId: wardrobe.id, reason: "shoes live with the clothes" }
+        : { itemId: i.id, zoneId: OFF_DESK.id, reason: "shoes don't belong on the floor" };
+    if (i.label === "book" && shelf) return { itemId: i.id, zoneId: shelf.id, reason: "books go on the shelf" };
+    if (i.label === "pillow" || i.label === "blanket")
+      return { itemId: i.id, zoneId: OFF_DESK.id, reason: "it belongs on the bed" };
+    if (i.label === "backpack")
+      return { itemId: i.id, zoneId: OFF_DESK.id, reason: "too big for a bin" };
+
     // Filing someone's notes or their glasses away is unhelpful, however tidy it looks.
     if (i.label === "sticky note") return { itemId: i.id, zoneId: DESK.id, reason: "it's there to be read" };
     if (i.label === "glasses") return { itemId: i.id, zoneId: DESK.id, reason: "so you can find them" };
@@ -58,7 +90,7 @@ export function fallbackPlan(items: Item[], zones: ZoneRef[]): Placement[] {
 
 /** Drop placements for unknown items/zones or duplicates; any item left unplaced goes to the desk. */
 export function completePlan(placements: Placement[], items: Item[], zones: ZoneRef[]): Placement[] {
-  const zoneIds = new Set([...zones.map((z) => z.id), DESK.id, TOSS.id, OFF_DESK.id]);
+  const zoneIds = new Set([...zones.map((z) => z.id), DESK.id, TOSS.id, OFF_DESK.id, KITCHEN.id]);
   const byItem = new Map<number, Placement>();
   for (const p of placements)
     if (zoneIds.has(p.zoneId) && !byItem.has(p.itemId)) byItem.set(p.itemId, p);
@@ -99,7 +131,7 @@ export function groupPlan(items: readonly Item[], zones: readonly ZoneRef[]): Pl
     else byZone.set(item.destinationZoneId, [item]);
   }
 
-  const order = [...zones.map((z) => z.id), TOSS.id, OFF_DESK.id, DESK.id];
+  const order = [...zones.map((z) => z.id), TOSS.id, KITCHEN.id, OFF_DESK.id, DESK.id];
   const ids = [
     ...order.filter((id) => byZone.has(id)),
     ...[...byZone.keys()].filter((id) => !order.includes(id)),
@@ -136,7 +168,9 @@ export function instructionFor(item: Item, zones: readonly ZoneRef[]): string {
     case TOSS.id:
       return `Throw away ${what}.`;
     case OFF_DESK.id:
-      return `Take ${what} off the desk.`;
+      return `Put ${what} away where it belongs.`;
+    case KITCHEN.id:
+      return `Take ${what} to the kitchen.`;
     case DESK.id:
       return `Leave ${what} where it is.`;
     default:
@@ -221,9 +255,9 @@ export function previewInstructions(groups: readonly PlanGroup[], zones: readonl
  */
 export function previewPrompt(groups: readonly PlanGroup[], zones: readonly ZoneRef[]): string {
   return [
-    "Edit this photo of a desk to show the same desk after it has been tidied.",
+    "Edit this photo to show the same room after it has been tidied.",
     ...previewInstructions(groups, zones),
-    "Keep the same camera angle, the same desk and the same lighting.",
+    "Keep the same camera angle, the same furniture and the same lighting.",
     "Do not add any object that is not already in the photo.",
     "Do not add text, labels, numbers, arrows or captions.",
   ].join(" ");

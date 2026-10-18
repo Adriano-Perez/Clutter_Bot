@@ -28,7 +28,8 @@ describe("fallbackPlan", () => {
   it("follows the rules", () => {
     const withDaily = items.map((i) => (i.id === 6 ? { ...i, usage: "daily" as const } : i));
     const zoneOf = Object.fromEntries(fallbackPlan(withDaily, zones).map((p) => [p.itemId, p.zoneId]));
-    expect(zoneOf).toEqual({ 1: "A", 2: "A", 3: "B", 4: "toss", 5: "A", 6: "desk" });
+    // 5 is a mug: crockery goes to the kitchen, not into a bedroom bin.
+    expect(zoneOf).toEqual({ 1: "A", 2: "A", 3: "B", 4: "toss", 5: "kitchen", 6: "desk" });
   });
 
   it("keeps cables with a daily charger and uses the desk when there are no zones", () => {
@@ -44,7 +45,7 @@ describe("fallbackPlan: trash, backpack, clothes", () => {
   it("tosses trash and moves backpacks and clothes off the desk", () => {
     const extra = [item(1, "trash"), item(2, "backpack"), item(3, "clothes"), item(4, "mug")];
     const zoneOf = Object.fromEntries(fallbackPlan(extra, zones).map((p) => [p.itemId, p.zoneId]));
-    expect(zoneOf).toEqual({ 1: "toss", 2: "off-desk", 3: "off-desk", 4: "A" });
+    expect(zoneOf).toEqual({ 1: "toss", 2: "off-desk", 3: "off-desk", 4: "kitchen" });
   });
 
   it("completePlan accepts the off-desk zone", () => {
@@ -145,7 +146,7 @@ describe("prompt injection and personal data", () => {
         "A storage bin — 1 charger, 2 cable, 5 mug (stored out of the way)",
         "B pen cup — 3 pen (keeps pens together)",
         "Toss — 4 paper (loose paper is clutter)",
-        "Stays on your desk — 6 notebook (you use it every day)",
+        "Stays where it is — 6 notebook (you use it every day)",
         "",
         "Put it all away, then send me another photo and I'll check.",
       ].join("\n"),

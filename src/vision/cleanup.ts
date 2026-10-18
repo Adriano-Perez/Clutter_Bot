@@ -29,6 +29,12 @@ const SINGLE_OBJECT_LABELS = new Set([
   "backpack",
   "calculator",
   "power bank",
+  "book",
+  "pillow",
+  "blanket",
+  "plate",
+  "bowl",
+  "shoes",
   // A pair of glasses often comes back as two boxes, one per lens.
   "glasses",
 ]);
@@ -47,7 +53,6 @@ export const SYNONYMS: Record<string, string> = {
   "power adapter": "charger",
   "phone charger": "charger",
   earbuds: "headphones",
-  book: "notebook",
   receipt: "paper",
   "food wrapper": "trash",
   "chip bag": "trash",
@@ -56,11 +61,16 @@ export const SYNONYMS: Record<string, string> = {
   clothing: "clothes",
   eyeglasses: "glasses",
   "post-it": "sticky note",
+  shoe: "shoes",
+  sneakers: "shoes",
+  hoodie: "clothes",
+  "t-shirt": "clothes",
+  jacket: "clothes",
+  towel: "blanket",
 };
 
 // Rule a: when two labels land on the same box, the winner's label is kept.
 const PREFERRED_OVER: Record<string, readonly string[]> = {
-  notebook: ["book"],
   headphones: ["cable"],
   charger: ["cable"],
   trash: ["snack", "paper"],

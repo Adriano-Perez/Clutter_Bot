@@ -87,14 +87,15 @@ describe("whereDoesText", () => {
   });
 
   it("names the pseudo-zones in words", () => {
-    expect(whereDoesText(planned(), "where does the phone go")).toContain("Stays on your desk");
+    expect(whereDoesText(planned(), "where does the phone go")).toContain("Stays where it is");
     expect(whereDoesText(planned(), "where does 4 go")).toContain("Toss");
   });
 
   it("falls back to the rule when there is no plan yet", () => {
     expect(whereDoesText(session(), "where does the pen go?")).toMatch(/pen cup/i);
     expect(whereDoesText(session(), "where do cables go?")).toMatch(/charger/i);
-    expect(whereDoesText(session(), "where does my mug go?")).toMatch(/storage bin/i);
+    expect(whereDoesText(session(), "where does my mug go?")).toMatch(/kitchen/i);
+    expect(whereDoesText(session(), "where do my clothes go?")).toMatch(/closet/i);
   });
 
   it("asks which item when it can't tell", () => {

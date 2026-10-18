@@ -10,7 +10,7 @@ export const DETECT_MAX_SIDE = 768;
 const INSIDE_ZONE = 0.7; // share of an item's box inside a zone box
 
 export const NO_ITEMS_LEGEND =
-  "I couldn't make out any items. Try again with more light, from directly above.";
+  "I couldn't make out anything to tidy. Try again with more light, taking in more of the room.";
 
 export interface DetectPhotoResult {
   overlayPng: Buffer;

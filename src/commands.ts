@@ -23,9 +23,9 @@ const START_OVER = new Set(["start over", "reset", "restart"]);
 /** The limit judges ask about, in one sentence. Worth repeating rather than hiding. */
 export const HONESTY = "I only count what I can see, so nothing inside a closed bin or drawer.";
 
-export const HELP = `I'm ClutterBot. I tell you where everything on your desk goes, then check that you put it there.
+export const HELP = `I'm ClutterBot. I tell you where everything lying out goes, then check that you put it there.
 
-1. Text me a photo of your desk.
+1. Text me a photo of your room.
 2. I send it back with every item numbered and every storage spot lettered.
 3. Tell me which numbers you use every day — like "2 5" — or say skip.
 4. I tell you where each thing goes.
@@ -41,7 +41,7 @@ export function statusText(session: Session): string {
 
   switch (phase) {
     case "awaiting_photo":
-      return "Nothing on the go. Send me a photo of your desk and I'll number everything on it.";
+      return "Nothing on the go. Send me a photo of your room and I'll number everything lying out.";
     case "interview":
       return `I found ${count(items.length, "thing", "things")} in your photo. Tell me which numbers you use every day — like "2 5" — or say skip.`;
     case "planned": {
@@ -67,8 +67,15 @@ const GENERAL_RULE: Record<string, string> = {
   trash: "Trash gets tossed.",
   cable: "Cables go wherever the charger goes, so you never hunt for both.",
   charger: "A charger you use every day stays on the desk; otherwise it goes in a bin.",
-  backpack: "Backpacks go off the desk entirely — they don't fit a desk bin.",
-  clothes: "Clothes go off the desk entirely — they don't fit a desk bin.",
+  backpack: "Backpacks go out of the way — they don't fit in a bin.",
+  clothes: "Clothes go in the closet, the dresser or the laundry basket.",
+  shoes: "Shoes live with the clothes, not on the floor.",
+  book: "Books go on a shelf if there's one in the photo.",
+  mug: "Mugs go to the kitchen — they need washing up.",
+  plate: "Plates go to the kitchen, not into a bin.",
+  bowl: "Bowls go to the kitchen, not into a bin.",
+  pillow: "Pillows belong on the bed.",
+  blanket: "Blankets belong on the bed.",
   "sticky note": "Sticky notes stay on the desk — they're there to be read.",
   glasses: "Glasses stay on the desk, where you'll find them.",
   "power bank": "A power bank goes in a bin with the charger, unless you use it every day.",

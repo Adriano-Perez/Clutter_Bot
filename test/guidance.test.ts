@@ -43,7 +43,8 @@ describe("instructionFor", () => {
   it("says what to physically do", () => {
     expect(instructionFor(item(1, "charger", "A"), zones)).toBe("Put the charger (1) in A storage bin.");
     expect(instructionFor(item(4, "paper", "toss"), zones)).toBe("Throw away the paper (4).");
-    expect(instructionFor(item(6, "backpack", "off-desk"), zones)).toBe("Take the backpack (6) off the desk.");
+    expect(instructionFor(item(6, "backpack", "off-desk"), zones)).toBe("Put the backpack (6) away where it belongs.");
+    expect(instructionFor(item(7, "mug", "kitchen"), zones)).toBe("Take the mug (7) to the kitchen.");
     expect(instructionFor(item(5, "phone", "desk"), zones)).toBe("Leave the phone (5) where it is.");
   });
 });
@@ -176,6 +177,6 @@ describe("a label correction invalidates the steps", () => {
     expect(s.steps).toHaveLength(0);
 
     expect(say(s, "next")).toBe("Step 1 of 5: Put the charger (1) in A storage bin.");
-    expect(s.steps.find((step) => step.itemId === 4)!.instruction).toBe("Put the mug (4) in A storage bin.");
+    expect(s.steps.find((step) => step.itemId === 4)!.instruction).toBe("Take the mug (4) to the kitchen.");
   });
 });

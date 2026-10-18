@@ -64,7 +64,9 @@ describe("iou", () => {
 });
 
 describe("cleanDetections", () => {
-  it("merges the book/notebook pair into one notebook", () => {
+  it("keeps whichever of book/notebook was detected first when they land on the same box", () => {
+    // "book" used to be a synonym for "notebook". In a whole room a book is its own thing, so the
+    // two are now distinct labels and only the duplicate box is collapsed.
     const out = cleanDetections(
       [
         { label: "book", box: BOOK },
@@ -73,7 +75,7 @@ describe("cleanDetections", () => {
       [],
       1024,
     );
-    expect(out).toEqual([{ label: "notebook", box: BOOK }]);
+    expect(out).toEqual([{ label: "book", box: BOOK }]);
   });
 
   it("merges cable/headphones at the same box into one headphones", () => {
@@ -129,8 +131,21 @@ describe("cleanDetections", () => {
     expect(out.map((d) => d.label)).toEqual(["trash"]);
   });
 
-  it("maps a lone book to notebook", () => {
-    expect(cleanDetections([{ label: "book", box: BOOK }], [], 1024)).toEqual([{ label: "notebook", box: BOOK }]);
+  it("leaves a book as a book", () => {
+    expect(cleanDetections([{ label: "book", box: BOOK }], [], 1024)).toEqual([{ label: "book", box: BOOK }]);
+  });
+
+  it("folds room-specific synonyms into their canonical label", () => {
+    const out = cleanDetections(
+      [
+        { label: "hoodie", box: [0, 0, 60, 60] },
+        { label: "sneakers", box: [200, 0, 260, 60] },
+        { label: "towel", box: [400, 0, 460, 60] },
+      ],
+      [],
+      1024,
+    );
+    expect(out.map((d) => d.label)).toEqual(["clothes", "shoes", "blanket"]);
   });
 
   describe("cup rule", () => {

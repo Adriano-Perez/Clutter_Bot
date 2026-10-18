@@ -23,8 +23,8 @@ export interface Quality {
 }
 
 export const RETAKE: Record<QualityProblem, string> = {
-  dark: "That photo's too dark for me to make anything out. Try again with more light on the desk.",
-  blurry: "That one came out blurry. Hold the phone still and shoot straight down over the desk.",
+  dark: "That photo's too dark for me to make anything out. Try again with more light.",
+  blurry: "That one came out blurry. Hold the phone still and take it again.",
 };
 
 /**

@@ -164,7 +164,7 @@ describe("the whole loop, end to end", () => {
     expect(plan).toContain("A storage bin — 1 charger, 2 cable (stored out of the way)");
     expect(plan).toContain("B pen cup — 3 pen (keeps pens together)");
     expect(plan).toContain("Toss — 4 paper (loose paper is clutter)");
-    expect(plan).toContain("Stays on your desk — 5 phone (you use it every day)");
+    expect(plan).toContain("Stays where it is — 5 phone (you use it every day)");
     expect(session().phase).toBe("planned");
 
     // 3. Step-by-step guidance mid-run.
