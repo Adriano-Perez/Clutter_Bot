@@ -129,6 +129,15 @@ export function planMessage(groups: readonly PlanGroup[]): string {
   return ["Here's where everything goes:", "", ...groups.map(groupLine)].join("\n");
 }
 
+/**
+ * The tappable /s/:id link, when the server has a public address. Returns undefined otherwise,
+ * so a local run simply doesn't mention a link rather than texting a broken one.
+ */
+export function planLink(sessionId: string): string | undefined {
+  const base = process.env.PUBLIC_BASE_URL?.trim().replace(/\/+$/, "");
+  return base ? `${base}/s/${sessionId}` : undefined;
+}
+
 /** Always sent with the preview, so nobody mistakes it for a photo of their actual desk. */
 export const PREVIEW_CAPTION = "Illustration, not a photo — roughly how your desk could look.";
 

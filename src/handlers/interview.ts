@@ -7,6 +7,7 @@ import {
   completePlan,
   fallbackPlan,
   groupPlan,
+  planLink,
   planMessage,
   type Placement,
   type ZoneRef,
@@ -112,7 +113,9 @@ export const interview: PhaseHandler = async (session, msg) => {
   session.phase = "planned";
 
   const groups = groupPlan(session.items, zones);
-  await msg.send({ type: "text", text: [planMessage(groups), "", NEXT_STEP].join("\n") });
+  const link = planLink(session.id);
+  const lines = [planMessage(groups), "", NEXT_STEP, ...(link ? [`Your plan: ${link}`] : [])];
+  await msg.send({ type: "text", text: lines.join("\n") });
 
   // Fire and forget. The plan is already delivered, and the router has to save the session now
   // rather than 25s from now, or the user's next photo would load a session still in "interview".

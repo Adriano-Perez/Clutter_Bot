@@ -2,7 +2,7 @@ import { imessage } from "@spectrum-ts/imessage";
 import { Spectrum, attachment } from "spectrum-ts";
 import { mask } from "./media.js";
 import { MessageRouter } from "../router.js";
-import { SqliteSessionStore } from "../store/sessionStore.js";
+import { SqliteSessionStore, type SessionStore } from "../store/sessionStore.js";
 import { awaitingPhoto } from "../handlers/awaitingPhoto.js";
 import { interview } from "../handlers/interview.js";
 import { planned } from "../handlers/planned.js";
@@ -75,7 +75,7 @@ export async function handleMessage([space, message]: Inbound, app: App, router:
   });
 }
 
-export async function startPhoton() {
+export async function startPhoton(store: SessionStore = new SqliteSessionStore()) {
   const { PROJECT_ID, PROJECT_SECRET } = process.env;
   if (!PROJECT_ID || !PROJECT_SECRET) throw new Error("PROJECT_ID and PROJECT_SECRET must be set");
 
@@ -86,7 +86,7 @@ export async function startPhoton() {
   });
   console.log("photon: iMessage connected");
 
-  const router = new MessageRouter(new SqliteSessionStore(), {
+  const router = new MessageRouter(store, {
     awaiting_photo: awaitingPhoto,
     interview,
     planned,
