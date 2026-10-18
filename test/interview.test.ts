@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { completePlan, fallbackPlan, interview, parseDaily, sanitizeReply } from "../src/handlers/interview.js";
 import { json } from "../src/llm/gemini.js";
-import type { InboundMessage } from "../src/router.js";
+import { sendPreview } from "../src/preview.js";
+import type { InboundMessage, Reply } from "../src/router.js";
 import type { Item, Session } from "../src/types.js";
 
 vi.mock("../src/llm/gemini.js", () => ({ json: vi.fn() }));
+vi.mock("../src/preview.js", () => ({ sendPreview: vi.fn(async () => false) }));
 
 const item = (id: number, label: string, usage?: Item["usage"]): Item => ({ id, label, usage, box: [0, 0, 1, 1], evidence: [] });
 
@@ -102,6 +104,53 @@ describe("prompt injection and personal data", () => {
     expect(prompt).toContain("<user_reply>1 and 4 and</user_reply>");
     for (const leaked of ["Ignore", "previous instructions", "system prompt", SENDER, "5551234567", "sess1234"])
       expect(prompt).not.toContain(leaked);
+  });
+
+  it("says it's working, then sends the grouped plan, then offers the preview", async () => {
+    vi.mocked(json).mockResolvedValue({
+      value: {
+        placements: [
+          { itemId: 1, zoneId: "A", reason: "stored out of the way" },
+          { itemId: 2, zoneId: "A", reason: "stored out of the way" },
+          { itemId: 3, zoneId: "B", reason: "keeps pens together" },
+          { itemId: 4, zoneId: "toss", reason: "loose paper is clutter" },
+          { itemId: 5, zoneId: "A", reason: "stored out of the way" },
+          { itemId: 6, zoneId: "desk", reason: "you use it every day" },
+        ],
+      },
+      ms: 1,
+    });
+
+    const session = {
+      id: "sess1234",
+      userHandle: SENDER,
+      phase: "interview",
+      beforePhoto: "data/media/0142/1.jpg",
+      items: items.map((i) => ({ ...i })),
+      zones: zones.map((z) => ({ ...z, polygon: [] })),
+    } as unknown as Session;
+    const send = vi.fn(async (_reply: Reply) => {});
+    const msg = { eventId: "e1", sender: SENDER, content: { type: "text", text: "6" }, send } as InboundMessage;
+
+    const replies = await interview(session, msg);
+
+    // The router sends whatever the handler returns, so an empty array means nothing is sent twice.
+    expect(replies).toEqual([]);
+    const texts = send.mock.calls.map(([r]) => (r as { text: string }).text);
+    expect(texts[0]).toBe("Working out where everything goes…");
+    expect(texts[1]).toBe(
+      [
+        "Here's where everything goes:",
+        "",
+        "A storage bin — 1 charger, 2 cable, 5 mug (stored out of the way)",
+        "B pen cup — 3 pen (keeps pens together)",
+        "Toss — 4 paper (loose paper is clutter)",
+        "Stays on your desk — 6 notebook (you use it every day)",
+        "",
+        "Put it all away, then send me another photo and I'll check.",
+      ].join("\n"),
+    );
+    expect(sendPreview).toHaveBeenCalledWith("data/media/0142/1.jpg", expect.any(Array), zones, send);
   });
 
   it("uses the fallback plan when Gemini output fails validation", async () => {
