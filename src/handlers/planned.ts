@@ -1,5 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { NEXT_STEP } from "../plan.js";
 import type { PhaseHandler } from "../router.js";
 import { mask, savePhoto } from "../photon/media.js";
 import { DETECT_MAX_SIDE, detectPhoto } from "../pipeline/detectPhoto.js";
@@ -24,7 +25,7 @@ export function overlayItems(c: Comparison): { id: number; box: Box; color: stri
 export const planned: PhaseHandler = async (session, msg) => {
   const { content } = msg;
   if (content.type !== "attachment" || !content.mimeType.startsWith("image/"))
-    return [{ type: "text", text: "Put things away, then send me another photo and I'll check." }];
+    return [{ type: "text", text: NEXT_STEP }];
 
   const file = await savePhoto(await content.read(), content.mimeType, msg.sender);
   console.log(`planned: saved after photo ${path.relative(process.cwd(), file)}`);
