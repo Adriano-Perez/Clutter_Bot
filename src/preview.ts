@@ -33,7 +33,7 @@ export async function sendPreview(
 
   try {
     const photo = await normalizePhoto(await readFile(beforePhoto), { maxSide: PREVIEW_MAX_SIDE });
-    const { png, ms } = await editImage(photo.buf, previewPrompt(groups, zones), { timeoutMs: TIMEOUT_MS });
+    const { png, ms } = await editImage(photo.buf, `${previewPrompt(groups, zones)} Box coordinates refer to pixels in this ${photo.width} by ${photo.height} image.`, { timeoutMs: TIMEOUT_MS });
 
     if (!isCurrent()) {
       console.log("preview: skipped because the session or plan changed");

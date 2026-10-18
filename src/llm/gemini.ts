@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, type ThinkingLevel } from "@google/genai";
 import { z } from "zod";
 
 const DEFAULT_MODEL = "gemini-3.8-flash";
@@ -35,6 +35,8 @@ export interface JsonOptions {
   timeoutMs?: number;
   /** Overrides the configured model list. */
   models?: string[];
+  images?: readonly { data: string; mimeType: string }[];
+  thinkingLevel?: ThinkingLevel;
 }
 
 async function attempt<T>(
@@ -43,6 +45,8 @@ async function attempt<T>(
   jsonSchema: object,
   validator: z.ZodType<T>,
   timeoutMs: number,
+  images?: JsonOptions["images"],
+  thinkingLevel?: ThinkingLevel,
 ): Promise<{ value: T; ms: number }> {
   const ai = getClient();
   const controller = new AbortController();
@@ -62,11 +66,12 @@ async function attempt<T>(
     const res = await Promise.race([
       ai.models.generateContent({
         model,
-        contents: prompt,
+        contents: images?.length ? [{ role: "user", parts: [{ text: prompt }, ...images.map((inlineData) => ({ inlineData }))] }] : prompt,
         config: {
           responseMimeType: "application/json",
           responseJsonSchema: jsonSchema,
           abortSignal: controller.signal,
+          ...(thinkingLevel ? { thinkingConfig: { thinkingLevel } } : {}),
         },
       }),
       timeout,
@@ -117,7 +122,7 @@ export async function json<T>(
     }
 
     try {
-      return await attempt(model, prompt, jsonSchema, validator, remaining);
+      return await attempt(model, prompt, jsonSchema, validator, remaining, opts.images, opts.thinkingLevel);
     } catch (err) {
       lastError = err;
       const next = models[i + 1];
