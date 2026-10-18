@@ -5,9 +5,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DetectPhotoResult } from "../src/pipeline/detectPhoto.js";
 import type { InboundMessage, Reply } from "../src/router.js";
 import type { Session } from "../src/types.js";
+import type { Quality } from "../src/vision/quality.js";
 
 const detectPhoto = vi.fn<(input: Buffer | Uint8Array) => Promise<DetectPhotoResult>>();
 vi.mock("../src/pipeline/detectPhoto.js", () => ({ detectPhoto }));
+
+// savePhoto below writes placeholder bytes rather than a real JPEG, so the real sharp-backed
+// quality check can't run here. It has its own tests in quality.test.ts.
+const assessQuality = vi.fn<() => Promise<Quality>>();
+vi.mock("../src/vision/quality.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../src/vision/quality.js")>()),
+  assessQuality,
+}));
 
 // savePhoto writes into a temp dir instead of data/media; mask stays real.
 let mediaDir: string;
@@ -25,6 +34,7 @@ vi.mock("../src/photon/media.js", async (importOriginal) => {
 });
 
 const { awaitingPhoto } = await import("../src/handlers/awaitingPhoto.js");
+const { RETAKE } = await import("../src/vision/quality.js");
 
 function newSession(): Session {
   return {
@@ -70,10 +80,12 @@ describe("awaitingPhoto", () => {
   beforeEach(async () => {
     mediaDir = await mkdtemp(path.join(tmpdir(), "clutterbot-media-"));
     vi.spyOn(console, "log").mockImplementation(() => {});
+    assessQuality.mockResolvedValue({ brightness: 0.65, sharpness: 400 });
   });
 
   afterEach(async () => {
     detectPhoto.mockReset();
+    assessQuality.mockReset();
     vi.restoreAllMocks();
     await rm(mediaDir, { recursive: true, force: true });
   });
@@ -111,6 +123,23 @@ describe("awaitingPhoto", () => {
     expect(replies).toEqual([{ type: "text", text: legend }]);
     expect(session.phase).toBe("awaiting_photo");
     expect(session.items).toEqual([]);
+  });
+
+  it.each([
+    ["dark" as const, { brightness: 0.05, sharpness: 2 }],
+    ["blurry" as const, { brightness: 0.62, sharpness: 9 }],
+  ])("asks for a retake on a %s photo without spending a Perceptron call", async (problem, measured) => {
+    assessQuality.mockResolvedValue({ ...measured, problem });
+    const session = newSession();
+
+    const replies = await awaitingPhoto(session, photoMessage());
+
+    expect(replies).toEqual([{ type: "text", text: RETAKE[problem] }]);
+    expect(detectPhoto).not.toHaveBeenCalled();
+    expect(session.phase).toBe("awaiting_photo");
+    expect(session.items).toEqual([]);
+    // The photo is still kept, so a retake can be compared against it if we ever want to.
+    expect(session.beforePhoto).toBe(path.join(mediaDir, "1700000000000.jpg"));
   });
 
   it("apologizes, logs a masked sender and stays in awaiting_photo when detection throws", async () => {
