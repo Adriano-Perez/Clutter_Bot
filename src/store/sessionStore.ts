@@ -5,6 +5,8 @@ import type { Session } from "../types.js";
 
 export interface SessionStore {
   get(userHandle: string): Session | undefined;
+  /** Looks a session up by its short slug, for the /s/:id page. */
+  getById(id: string): Session | undefined;
   save(session: Session): void;
   reset(userHandle: string): void;
   /** Records an event ID; returns false if it was already seen (NFR-GW-02). */
@@ -25,6 +27,13 @@ export class SqliteSessionStore implements SessionStore {
 
   get(userHandle: string) {
     const row = this.db.prepare("SELECT json FROM sessions WHERE user_handle = ?").get(userHandle) as { json: string } | undefined;
+    return row && (JSON.parse(row.json) as Session);
+  }
+
+  getById(id: string) {
+    const row = this.db
+      .prepare("SELECT json FROM sessions WHERE json_extract(json, '$.id') = ?")
+      .get(id) as { json: string } | undefined;
     return row && (JSON.parse(row.json) as Session);
   }
 
