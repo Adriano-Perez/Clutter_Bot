@@ -5,7 +5,8 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { LABEL_VOCAB } from "../src/vision/labels.js";
 import { normalizePhoto } from "../src/vision/normalize.js";
-import { detect, type DetectOptions } from "../src/vision/perceptron.js";
+import { numberItems, renderDetections, type Box } from "../src/vision/overlay.js";
+import { detect, type DetectOptions, type DetectResult } from "../src/vision/perceptron.js";
 
 const OUT_DIR = "out";
 
@@ -28,6 +29,7 @@ async function main(): Promise<void> {
   const photoName = path.parse(photoPath).name;
   await mkdir(OUT_DIR, { recursive: true });
 
+  let categoriesResult: DetectResult | undefined;
   const timings: { call: string; items: number | string; ms: number | string; finish: string }[] = [];
 
   for (const { name, options } of calls) {
@@ -40,6 +42,7 @@ async function main(): Promise<void> {
       console.log(`mentions: ${mentions.join(", ") || "(none)"}`);
       console.log(`ms: ${result.ms}`);
       await writeFile(outFile, JSON.stringify(result, null, 2));
+      if (options.categories) categoriesResult = result;
       timings.push({ call: name, items: result.detections.length, ms: result.ms, finish: result.finishReason });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -48,6 +51,20 @@ async function main(): Promise<void> {
       timings.push({ call: name, items: "-", ms: "-", finish: "error" });
     }
     console.log(`saved ${outFile}`);
+  }
+
+  if (categoriesResult) {
+    const boxed = categoriesResult.detections.flatMap(({ mention, point_box: pb }) => {
+      if (!pb) return [];
+      const box: Box = [pb.top_left.x, pb.top_left.y, pb.bottom_right.x, pb.bottom_right.y];
+      return [{ label: mention, box }];
+    });
+    const numbered = numberItems(boxed);
+    const overlayFile = path.join(OUT_DIR, `${photoName}.overlay.png`);
+    await writeFile(overlayFile, await renderDetections(photo.buf, photo.width, photo.height, numbered));
+    console.log(`\nsaved ${overlayFile}: ${numbered.map((i) => `${i.id} ${i.label}`).join(", ") || "(no boxes)"}`);
+  } else {
+    console.log("\nno overlay: the categories call failed");
   }
 
   console.log();
