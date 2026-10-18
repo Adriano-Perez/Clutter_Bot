@@ -8,7 +8,7 @@ export interface BoxedItem {
 
 export interface OverlayZone {
   id: string; // letter shown in the badge
-  polygon: readonly (readonly [number, number])[];
+  box: Box;
 }
 
 const ROW_HEIGHT = 80;
@@ -55,7 +55,7 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 // FR-DET-05: yellow box per item with a numbered badge at its top-left corner,
-// and a dashed blue outline per zone with a letter badge.
+// and a dashed blue rectangle per zone with a letter badge.
 export async function renderDetections(
   photoBuf: Buffer,
   width: number,
@@ -63,18 +63,15 @@ export async function renderDetections(
   items: readonly (BoxedItem & { id: number })[],
   zones: readonly OverlayZone[] = [],
 ): Promise<Buffer> {
-  const zoneShapes = zones
-    .filter((z) => z.polygon.length > 0)
-    .map(({ id, polygon }) => {
-      const points = polygon.map(([x, y]) => `${x},${y}`).join(" ");
-      const cx = clamp(Math.min(...polygon.map(([x]) => x)), BADGE_RADIUS, width - BADGE_RADIUS);
-      const cy = clamp(Math.min(...polygon.map(([, y]) => y)), BADGE_RADIUS, height - BADGE_RADIUS);
-      return (
-        `<polygon points="${points}" fill="none" stroke="${ZONE_COLOR}" stroke-width="${ZONE_STROKE}" stroke-dasharray="14 8"/>` +
-        `<circle cx="${cx}" cy="${cy}" r="${BADGE_RADIUS}" fill="${ZONE_COLOR}" stroke="#fff" stroke-width="2"/>` +
-        `<text x="${cx}" y="${cy}" font-family="Helvetica, Arial, sans-serif" font-size="${BADGE_FONT_SIZE}" font-weight="bold" fill="#fff" text-anchor="middle" dominant-baseline="central">${escapeXml(id)}</text>`
-      );
-    });
+  const zoneShapes = zones.map(({ id, box: [x1, y1, x2, y2] }) => {
+    const cx = clamp(x1, BADGE_RADIUS, width - BADGE_RADIUS);
+    const cy = clamp(y1, BADGE_RADIUS, height - BADGE_RADIUS);
+    return (
+      `<rect x="${x1}" y="${y1}" width="${x2 - x1}" height="${y2 - y1}" fill="none" stroke="${ZONE_COLOR}" stroke-width="${ZONE_STROKE}" stroke-dasharray="14 8"/>` +
+      `<circle cx="${cx}" cy="${cy}" r="${BADGE_RADIUS}" fill="${ZONE_COLOR}" stroke="#fff" stroke-width="2"/>` +
+      `<text x="${cx}" y="${cy}" font-family="Helvetica, Arial, sans-serif" font-size="${BADGE_FONT_SIZE}" font-weight="bold" fill="#fff" text-anchor="middle" dominant-baseline="central">${escapeXml(id)}</text>`
+    );
+  });
 
   const rects = items.map(({ box: [x1, y1, x2, y2] }) => {
     return `<rect x="${x1}" y="${y1}" width="${x2 - x1}" height="${y2 - y1}" fill="none" stroke="${BOX_COLOR}" stroke-width="${BOX_STROKE}"/>`;

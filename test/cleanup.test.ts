@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { cleanDetections, iou, type ZonePolygon } from "../src/vision/cleanup.js";
+import { cleanDetections, iou, type ZoneBox } from "../src/vision/cleanup.js";
 import type { Box } from "../src/vision/overlay.js";
 
 // Boxes copied from out/tray-messy.a-vocab-none.json.
 const BOOK: Box = [298, 278, 543, 542];
 const CABLE_HEADPHONES: Box = [734, 222, 944, 349];
-const PEN_CUP: Box = [15, 0, 155, 148];
+const PEN_IN_CUP: Box = [12, 0, 115, 112]; // pen #1 from the 768 px run
 
 describe("iou", () => {
   it("is 1 for identical boxes", () => {
@@ -49,24 +49,31 @@ describe("cleanDetections", () => {
     expect(out).toEqual([{ label: "headphones", box: CABLE_HEADPHONES }]);
   });
 
-  it("drops a pen box that is really the pen cup zone", () => {
-    const penCup: ZonePolygon = {
-      polygon: [
-        [10, 0],
-        [160, 0],
-        [160, 150],
-        [10, 150],
-      ],
-    };
+  it("drops a pen that sits inside a pen cup zone", () => {
+    const penCup: ZoneBox = { label: "pen cup", box: [5, 0, 125, 130] };
     const otherPen: Box = [466, 135, 564, 245];
     const out = cleanDetections(
       [
-        { label: "pen", box: PEN_CUP },
+        { label: "pen", box: PEN_IN_CUP },
         { label: "pen", box: otherPen },
       ],
       [penCup],
     );
     expect(out).toEqual([{ label: "pen", box: otherPen }]);
+  });
+
+  it("keeps items that are only near or partly over a bin", () => {
+    const bin: ZoneBox = { label: "storage bin", box: [0, 0, 300, 300] };
+    const cup: ZoneBox = { label: "cup", box: [400, 0, 500, 100] };
+    const insideBin = { label: "keys", box: [50, 50, 120, 120] as Box };
+    const overlapsCupEdge = { label: "pen", box: [460, 20, 560, 80] as Box }; // 40% inside the cup
+    expect(cleanDetections([insideBin, overlapsCupEdge], [bin, cup])).toEqual([insideBin, overlapsCupEdge]);
+  });
+
+  it("never drops a mug, even inside a cup zone", () => {
+    const mug = { label: "mug", box: [645, 108, 752, 236] as Box };
+    const cup: ZoneBox = { label: "cup", box: [640, 100, 760, 240] };
+    expect(cleanDetections([mug], [cup])).toEqual([mug]);
   });
 
   it("maps synonyms to canonical labels before deduping", () => {
@@ -94,18 +101,5 @@ describe("cleanDetections", () => {
     const out = cleanDetections([cord, headphones, looseCable], []);
 
     expect(out).toEqual([headphones, looseCable]);
-  });
-
-  it("does not treat the open desk area as a container", () => {
-    const desk: ZonePolygon = {
-      label: "open desk area",
-      polygon: [
-        [10, 0],
-        [160, 0],
-        [160, 150],
-        [10, 150],
-      ],
-    };
-    expect(cleanDetections([{ label: "pen", box: PEN_CUP }], [desk])).toHaveLength(1);
   });
 });

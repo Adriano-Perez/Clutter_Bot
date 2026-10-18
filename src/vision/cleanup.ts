@@ -5,17 +5,17 @@ export interface LabeledBox {
   box: Box;
 }
 
-export interface ZonePolygon {
-  label?: string;
-  polygon: readonly (readonly [number, number])[];
+export interface ZoneBox {
+  label: string;
+  box: Box;
 }
 
 const DUPLICATE_IOU = 0.85;
-const CONTAINER_IOU = 0.6;
+const CONTAINER_COVERAGE = 0.7; // share of the item's own area inside a cup zone
 const CORD_IOU = 0.2;
 
-// Open surfaces are zones too, but nothing detected on them is the surface itself.
-const NOT_A_CONTAINER = /desk|surface/i;
+// Only cup-like zones get detected as items themselves (a pen cup labeled "pen").
+const CONTAINER_ZONES = new Set(["pen cup", "cup"]);
 
 // Rule c: synonyms the vocabulary asks for, mapped back to one canonical label.
 const SYNONYMS: Record<string, string> = {
@@ -42,10 +42,12 @@ export function iou(a: Box, b: Box): number {
   return union > 0 ? inter / union : 0;
 }
 
-function boundingBox(polygon: ZonePolygon["polygon"]): Box {
-  const xs = polygon.map(([x]) => x);
-  const ys = polygon.map(([, y]) => y);
-  return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+// Intersection over the item's own area: 1 when the item sits fully inside the zone.
+function coverage(item: Box, zone: Box): number {
+  const ix = Math.max(0, Math.min(item[2], zone[2]) - Math.max(item[0], zone[0]));
+  const iy = Math.max(0, Math.min(item[3], zone[3]) - Math.max(item[1], zone[1]));
+  const itemArea = Math.max(0, item[2] - item[0]) * Math.max(0, item[3] - item[1]);
+  return itemArea > 0 ? (ix * iy) / itemArea : 0;
 }
 
 function containsPoint([x1, y1, x2, y2]: Box, { x, y }: { x: number; y: number }): boolean {
@@ -61,7 +63,7 @@ function prefers(label: string, over: string): boolean {
 }
 
 // Post-processing for raw detections, before numbering (FR-DET-04).
-export function cleanDetections<T extends LabeledBox>(detections: readonly T[], zones: readonly ZonePolygon[]): T[] {
+export function cleanDetections<T extends LabeledBox>(detections: readonly T[], zones: readonly ZoneBox[]): T[] {
   const canonical = detections.map((d) => ({ ...d, label: SYNONYMS[d.label] ?? d.label }));
 
   const deduped: T[] = [];
@@ -79,8 +81,10 @@ export function cleanDetections<T extends LabeledBox>(detections: readonly T[], 
       !headphones.some((h) => iou(d.box, h) >= CORD_IOU || containsPoint(d.box, centerOf(h))),
   );
 
-  const zoneBoxes = zones
-    .filter((z) => z.polygon.length > 0 && !NOT_A_CONTAINER.test(z.label ?? ""))
-    .map((z) => boundingBox(z.polygon));
-  return withoutCords.filter((d) => !zoneBoxes.some((zb) => iou(d.box, zb) >= CONTAINER_IOU));
+  // Items near a bin are kept; only items sitting inside a cup zone are the cup itself.
+  // A mug is always an item, even inside a "cup" zone.
+  const cupBoxes = zones.filter((z) => CONTAINER_ZONES.has(z.label)).map((z) => z.box);
+  return withoutCords.filter(
+    (d) => d.label === "mug" || !cupBoxes.some((zb) => coverage(d.box, zb) >= CONTAINER_COVERAGE),
+  );
 }

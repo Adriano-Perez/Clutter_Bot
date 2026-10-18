@@ -1,22 +1,15 @@
 // Phase 0 spike: compare Perceptron detect settings on one photo (TC-DET-01 latency).
-// Usage: npx tsx scripts/spike-perceptron.ts <photo path> [--max-side 1024]
+// Usage: npx tsx scripts/spike-perceptron.ts <photo path> [--max-side 768]
 import "dotenv/config";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { parseArgs } from "node:util";
 import { cleanDetections, type LabeledBox } from "../src/vision/cleanup.js";
-import { LABEL_VOCAB, ZONE_PROMPT } from "../src/vision/labels.js";
+import { LABEL_VOCAB } from "../src/vision/labels.js";
 import { normalizePhoto } from "../src/vision/normalize.js";
-import { numberItems, renderDetections, type Box, type OverlayZone } from "../src/vision/overlay.js";
-import {
-  annotate,
-  detect,
-  gridToPixels,
-  PerceptronError,
-  type AnnotateResult,
-  type DetectOptions,
-  type DetectResult,
-} from "../src/vision/perceptron.js";
+import { numberItems, renderDetections, type Box } from "../src/vision/overlay.js";
+import { detect, PerceptronError, type DetectOptions, type DetectResult } from "../src/vision/perceptron.js";
+import { detectZones, withoutMugZones, type Zone } from "../src/vision/zones.js";
 
 const OUT_DIR = "out";
 
@@ -30,31 +23,6 @@ const comparisonCalls: Call[] = [
   { name: "b-open-none", options: { reasoningEffort: "none" } },
   { name: "c-open-low", options: { reasoningEffort: "low", timeoutMs: 40_000 } },
 ];
-
-type Zone = OverlayZone & { label: string };
-
-// Polygons (and any boxes) on the 0-1000 grid → pixel polygons, lettered A, B, C… left to right.
-function toZones(result: AnnotateResult, width: number, height: number): Zone[] {
-  const shapes = result.annotations.flatMap(({ kind, mention, points }) => {
-    const px = points.map((p) => gridToPixels(p, width, height));
-    let polygon: [number, number][];
-    if (kind === "polygon" && px.length >= 3) polygon = px.map(({ x, y }) => [x, y]);
-    else if (kind === "point_box" && px.length === 2) {
-      const [a, b] = px as [{ x: number; y: number }, { x: number; y: number }];
-      polygon = [
-        [a.x, a.y],
-        [b.x, a.y],
-        [b.x, b.y],
-        [a.x, b.y],
-      ];
-    } else return [];
-    const xs = polygon.map(([x]) => x);
-    return [{ label: mention ?? "zone", polygon, centerX: (Math.min(...xs) + Math.max(...xs)) / 2 }];
-  });
-  return shapes
-    .sort((a, b) => a.centerX - b.centerX)
-    .map(({ label, polygon }, i) => ({ id: String.fromCharCode(65 + i), label, polygon }));
-}
 
 type Timing = { call: string; items: number | string; ms: number | string; finish: string };
 
@@ -73,12 +41,12 @@ function formatBoxes(items: readonly LabeledBox[]): string {
 async function main(): Promise<void> {
   const { values, positionals } = parseArgs({
     allowPositionals: true,
-    options: { "max-side": { type: "string", default: "1024" } },
+    options: { "max-side": { type: "string", default: "768" } },
   });
   const photoPath = positionals[0];
   const maxSide = Number(values["max-side"]);
   if (!photoPath || !Number.isInteger(maxSide) || maxSide <= 0) {
-    console.error("Usage: npx tsx scripts/spike-perceptron.ts <photo path> [--max-side 1024]");
+    console.error("Usage: npx tsx scripts/spike-perceptron.ts <photo path> [--max-side 768]");
     process.exit(1);
   }
 
@@ -120,15 +88,16 @@ async function main(): Promise<void> {
   async function runZones(): Promise<Zone[] | undefined> {
     const name = "zones";
     const outFile = path.join(OUT_DIR, `${photoName}.${name}.json`);
-    const lines = [`\n--- ${name} (annotate, polygon) ---`];
+    const lines = [`\n--- ${name} (detect, box) ---`];
+    const start = performance.now();
     try {
-      const result = await annotate(photo.dataUrl, ZONE_PROMPT, { format: "polygon", reasoningEffort: "none" });
-      await writeFile(outFile, JSON.stringify(result, null, 2));
-      const zones = toZones(result, photo.width, photo.height);
+      const zones = await detectZones(photo);
+      const ms = Math.round(performance.now() - start);
+      await writeFile(outFile, JSON.stringify({ zones, ms }, null, 2));
       lines.push(`zones: ${zones.length}`);
-      for (const z of zones) lines.push(`  ${z.id}  ${z.label}  (${z.polygon.length} points)`);
-      lines.push(`ms: ${result.ms}`);
-      timings.push({ call: name, items: zones.length, ms: result.ms, finish: "-" });
+      for (const z of zones) lines.push(`  ${z.id}  ${z.label}  [${z.box.join(", ")}]`);
+      lines.push(`ms: ${ms}`);
+      timings.push({ call: name, items: zones.length, ms, finish: "-" });
       return zones;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -145,17 +114,22 @@ async function main(): Promise<void> {
   }
 
   const start = performance.now();
-  const [itemsResult, zones] = await Promise.all([runCall(itemsCall), runZones()]);
+  const [itemsResult, rawZones] = await Promise.all([runCall(itemsCall), runZones()]);
   const wallMs = Math.round(performance.now() - start);
   timings.push({ call: "items+zones wall", items: "-", ms: wallMs, finish: "-" });
 
   for (const call of comparisonCalls) await runCall(call);
 
   if (itemsResult) {
-    if (!zones) console.log("\nzones call failed: container filter skipped");
+    if (!rawZones) console.log("\nzones call failed: container filter skipped");
 
     const before = toBoxes(itemsResult);
-    const after = cleanDetections(before, zones ?? []);
+    const zones = withoutMugZones(rawZones ?? [], before);
+    if (rawZones && zones.length < rawZones.length) {
+      console.log(`\ndropped ${rawZones.length - zones.length} "cup" zone(s) on a mug; zones now:`);
+      for (const z of zones) console.log(`  ${z.id}  ${z.label}  [${z.box.join(", ")}]`);
+    }
+    const after = cleanDetections(before, zones);
     console.log(`\nbefore cleanup (${before.length}):\n${formatBoxes(before)}`);
     console.log(`after cleanup (${after.length}):\n${formatBoxes(after)}`);
 

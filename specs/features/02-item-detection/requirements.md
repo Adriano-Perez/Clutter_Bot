@@ -21,7 +21,7 @@ The system shall normalize the photo (EXIF-rotate, resize so the longest side �
 The system shall call Perceptron Mk1.5 with `annotation_format: "box"` and a JSON Schema response. It shall return up to 12 items, each with a `label` from `LABEL_VOCAB` (or `"other: <text>"`) and a pixel bounding box.
 
 ## Functional Requirement: FR-DET-03
-The system shall call Perceptron Mk1.5 with `annotation_format: "polygon"` to identify storage zones (bin, drawer, shelf, tray, open desk area), each with a label and polygon.
+The system shall call Perceptron Mk1.5's `/v1/detect` endpoint with `ZONE_CATEGORIES` (storage bin, box, pen cup, cup, drawer, tray) and box output to identify storage zones, each with a label and a pixel bounding box. Zones smaller than 1% of the image are dropped, overlapping zones (IoU ≥ 0.5) are merged, and the rest are lettered A, B, C… left to right. A detection labeled "mug" is always an item, never a zone.
 
 ## Functional Requirement: FR-DET-04
 The system shall assign items stable 1-based IDs, sorted left-to-right then top-to-bottom, and record each as an `Item` with evidence `{state: "seen", source: "photo"}`.
