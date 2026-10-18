@@ -14,7 +14,7 @@ Owner: **B** (Adriano). Phase 0 (accounts) → Phase 3. **Cut rule:** if TC-VOIC
 - [ ] `PostCallWebhook` with HMAC verification → `Replier.send` summary
 - [ ] Caller-ID fallback (ask for last 4 digits) if the variable is empty
 - [ ] Unit tests: tool auth 401, webhook HMAC reject, summary formatter
-- [ ] PR → VEYZL → merge
+- [ ] PR → review → merge
 
 ## Files to Create or Modify
 - `src/voice/toolsRouter.ts`: `/tools/*` routes

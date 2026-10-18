@@ -100,7 +100,7 @@ the configured model failing one call in three, which is why that exists.
 
 **"Is my photo safe?"**
 Phone numbers are masked in logs. The user's text is reduced to an allow-list before any model sees
-it — that was a real VEYZL finding, fixed in #48.
+it, so an instruction typed into a text message can't reach the model.
 
 **"What if it's wrong about where something goes?"**
 Correct the label (`3 is a power bank`) and it re-plans that item. If a bin fills up, `A is full`
@@ -113,4 +113,4 @@ moves the rest elsewhere. Neither costs a model call, so both reply instantly.
 | Perceptron | Without it there are no numbers and no check. Open detection took ~31s and returned sentences; a fixed 26-term vocabulary plus our cleanup rules does it in 9–16s |
 | Photon | The whole product is iMessage. No app, no sign-up, works from a judge's own phone |
 | Gemini | Schema-constrained JSON for the plan, with a measured model fallback and a code fallback; a second call makes the preview |
-| VEYZL | Found a real prompt-injection path from an inbound text into the plan prompt. Fixed in #48, and the same allow-list principle now covers the image prompt and label corrections |
+| Security | User text is reduced to an allow-list before any model sees it; the image prompt and label corrections are built only from our own vocabulary |

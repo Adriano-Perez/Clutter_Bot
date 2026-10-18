@@ -15,7 +15,7 @@ Owner: **A** (Daniel). Phase 2. Never cut.
 - [ ] Completion wrap-up with a side-by-side before/after (sharp `join`)
 - [ ] Plan page: show "You said / Photo" chips per item
 - [ ] Unit tests: classifier on fixtures (≥ 90%, 0 false verifications), formatter guard
-- [ ] PR → VEYZL → merge
+- [ ] PR → review → merge
 - [ ] *(Stretch)* video clip evidence
 
 ## Files to Create or Modify

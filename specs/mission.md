@@ -18,7 +18,7 @@ ClutterBot closes that loop and makes starting easy. It **observes** the space t
 - Guide the cleanup one action at a time, by voice or text. Re-plan when the user reports a blocker ("that drawer is full").
 - Verify progress with a follow-up photo, reporting **verified / not visible (unconfirmed) / still here** for each item, without overstating certainty.
 - Keep one session continuous across iMessage, voice calls, and a web plan page.
-- Hackathon goals: win **Perceptron Perception** and **Photon** (iMessage + Best voice agent). Also enter **VEYZL**, **Community Kitchen** (title track), **MLH Best Use of Gemini**, **DubHacks NEXT**, and **MLH Commit Fellowship**.
+- Hackathon goals: win **Perceptron Perception** and **Photon** (iMessage + Best voice agent). Also enter **Community Kitchen** (title track), **MLH Best Use of Gemini**, **DubHacks NEXT**, and **MLH Commit Fellowship**.
 
 ## In Scope
 - iMessage conversation on a Photon 2.0 beta shared line: receive photos and text, send text and annotated images.

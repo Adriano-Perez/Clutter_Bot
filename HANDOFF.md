@@ -11,23 +11,15 @@ green/red verdict. Plus `help`, `status`, `where does X go?`, `3 is a power bank
 
 Run `npm run dev`, text a photo, and it works.
 
-## Three things need you
+## What needs you
 
-### 1. VEYZL screenshot — 5 minutes, blocks nothing
+### 1. Gemini image quota
 
-The README has a `TODO` where a screenshot of the finding should go. The fix itself is documented
-in detail; it just needs the dashboard image. Issue #31.
+Working as of 06:44. The free tier has a daily cap, so it can run out again mid-day; when it does
+the preview is skipped silently, the plan is unaffected and nothing looks broken. Don't build the
+demo script around it being there.
 
-### 2. Gemini billing — turns on the preview illustration
-
-Every image model on the current key returns `429 … limit: 0`, which is the free tier having zero
-image quota. Enable billing on the key's Google Cloud project at
-[aistudio.google.com/apikey](https://aistudio.google.com/apikey) and the preview starts working
-with no code change. Ask the MLH table for credits first.
-
-Until then it's silently skipped — the plan is unaffected and nothing looks broken.
-
-### 3. Voice — config only, no code left
+### 2. Voice — config only, no code left
 
 The five server tools are built and tested (`POST /voice/*`). What's left is ElevenLabs agent
 setup, the tunnel and the SIP import, all written up in

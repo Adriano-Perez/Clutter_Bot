@@ -30,8 +30,7 @@ asking again.
 
 Bearer token in `Authorization`, compared against `TOOL_SHARED_SECRET` in constant time. If that
 variable is unset, every call is refused with `503` rather than running unauthenticated — an open
-endpoint returning someone's desk contents by phone number is the same class of mistake VEYZL
-flagged in #48.
+endpoint returning someone's desk contents by phone number leaks data by default.
 
 ## Left to do
 

@@ -15,7 +15,7 @@ Owner: **A** (Daniel). Phase 0 spike → Phase 1 (items) → Phase 2 (zones, cor
 - [ ] `CorrectionParser` + handler for corrections during `interview`
 - [ ] Tune the prompt on 3 fixture photos until NFR-DET-02 holds
 - [ ] Unit tests: `toPixels`, sorting/numbering, correction regexes, overlay geometry within bounds
-- [ ] PR → VEYZL → merge
+- [ ] PR → review → merge
 
 ## Files to Create or Modify
 - `src/vision/normalize.ts`: `PhotoNormalizer`
