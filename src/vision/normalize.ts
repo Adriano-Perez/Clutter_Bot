@@ -11,10 +11,13 @@ export interface NormalizedPhoto {
 }
 
 // FR-DET-01: one coordinate space for every model call and overlay.
-export async function normalizePhoto(input: Buffer): Promise<NormalizedPhoto> {
+export async function normalizePhoto(
+  input: Buffer,
+  { maxSide = MAX_SIDE }: { maxSide?: number } = {},
+): Promise<NormalizedPhoto> {
   const { data, info } = await sharp(input)
     .rotate() // apply EXIF orientation, then drop the tag
-    .resize({ width: MAX_SIDE, height: MAX_SIDE, fit: "inside", withoutEnlargement: true })
+    .resize({ width: maxSide, height: maxSide, fit: "inside", withoutEnlargement: true })
     .jpeg({ quality: JPEG_QUALITY })
     .toBuffer({ resolveWithObject: true });
 
