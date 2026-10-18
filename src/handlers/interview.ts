@@ -81,7 +81,7 @@ Items: ${JSON.stringify(items.map(({ id, label, usage }) => ({ id, label, usage 
 Zones: ${JSON.stringify([...zones, DESK, TOSS])}
 ${RULES}`;
   try {
-    const { value } = await json(prompt, planSchema, planValidator);
+    const { value } = await json(prompt, planSchema, planValidator, { timeoutMs: 25_000 });
     return completePlan(value.placements, items, zones);
   } catch (err) {
     console.error(`interview: gemini plan failed, using fallback: ${(err as Error).message}`);
