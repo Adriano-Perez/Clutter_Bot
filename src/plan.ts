@@ -83,19 +83,40 @@ export function fallbackPlan(items: Item[], zones: ZoneRef[]): Placement[] {
   const charger = items.find((i) => i.label === "charger");
   const chargerZone = charger && place(charger).zoneId;
   return items.map((i) =>
-    i.label === "cable" && chargerZone && i.usage !== "daily"
+    (i.label === "cable" || i.label === "power bank") && chargerZone && i.usage !== "daily"
       ? { itemId: i.id, zoneId: chargerZone, reason: "stays with the charger" }
       : place(i),
   );
 }
 
-/** Drop placements for unknown items/zones or duplicates; any item left unplaced goes to the desk. */
+/** Validate model suggestions against the hard rules; omitted/invalid items use the code planner. */
 export function completePlan(placements: Placement[], items: Item[], zones: ZoneRef[]): Placement[] {
-  const zoneIds = new Set([...zones.map((z) => z.id), DESK.id, TOSS.id, OFF_DESK.id, KITCHEN.id]);
+  const available = zones.filter((z) => !z.full);
+  const zoneIds = new Set([...available.map((z) => z.id), ...PSEUDO_ZONES.map((z) => z.id)]);
   const byItem = new Map<number, Placement>();
   for (const p of placements)
     if (zoneIds.has(p.zoneId) && !byItem.has(p.itemId)) byItem.set(p.itemId, p);
-  return items.map((i) => byItem.get(i.id) ?? { itemId: i.id, zoneId: DESK.id, reason: "keep it handy on the desk" });
+  const fallback = fallbackPlan(items, available);
+  const fixed = new Set(["paper", "receipt", "trash", "mug", "plate", "bowl", "backpack", "pillow", "blanket", "sticky note", "glasses"]);
+  const planned = items.map((item, index) => {
+    const rule = fallback[index]!;
+    const suggested = byItem.get(item.id);
+    const specificStorage = ["clothes", "shoes", "book", "pen"].includes(item.label) && rule.zoneId !== "desk";
+    if (!suggested || item.usage === "daily" || fixed.has(item.label) || specificStorage) return rule;
+    // A generic item cannot be tossed or sent to the kitchen just because a model suggests it.
+    if ([TOSS.id, KITCHEN.id, OFF_DESK.id].includes(suggested.zoneId)) return rule;
+    return { ...suggested, reason: suggested.reason.trim().split(/\s+/).slice(0, 10).join(" ") };
+  });
+  const charger = items.find((i) => i.label === "charger");
+  const chargerPlacement = charger && planned.find((p) => p.itemId === charger.id);
+  for (const item of items) {
+    if ((item.label === "cable" || item.label === "power bank") && item.usage !== "daily" && chargerPlacement) {
+      const p = planned.find((p) => p.itemId === item.id)!;
+      p.zoneId = chargerPlacement.zoneId;
+      p.reason = "stays with the charger";
+    }
+  }
+  return planned;
 }
 
 const MAX_ITEMS_PER_GROUP = 6;

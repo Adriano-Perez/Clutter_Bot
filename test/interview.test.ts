@@ -50,12 +50,12 @@ describe("fallbackPlan: trash, backpack, clothes", () => {
 
   it("completePlan accepts the off-desk zone", () => {
     const plan = completePlan([{ itemId: 2, zoneId: "off-desk", reason: "r" }], [item(2, "backpack")], zones);
-    expect(plan).toEqual([{ itemId: 2, zoneId: "off-desk", reason: "r" }]);
+    expect(plan).toMatchObject([{ itemId: 2, zoneId: "off-desk" }]);
   });
 });
 
 describe("completePlan", () => {
-  it("drops unknown items and zones, adds missing items to the desk", () => {
+  it("drops unknown items and zones, using the rules for missing items", () => {
     const plan = completePlan(
       [
         { itemId: 1, zoneId: "A", reason: "r" },
@@ -65,7 +65,7 @@ describe("completePlan", () => {
       items.slice(0, 3),
       zones,
     );
-    expect(plan.map((p) => [p.itemId, p.zoneId])).toEqual([[1, "A"], [2, "desk"], [3, "desk"]]);
+    expect(plan.map((p) => [p.itemId, p.zoneId])).toEqual([[1, "A"], [2, "A"], [3, "B"]]);
   });
 });
 
@@ -143,9 +143,10 @@ describe("prompt injection and personal data", () => {
       [
         "Here's where everything goes:",
         "",
-        "A storage bin — 1 charger, 2 cable, 5 mug (stored out of the way)",
+        "A storage bin — 1 charger, 2 cable (stored out of the way)",
         "B pen cup — 3 pen (keeps pens together)",
         "Toss — 4 paper (loose paper is clutter)",
+        "Take to the kitchen — 5 mug (it needs washing up)",
         "Stays where it is — 6 notebook (you use it every day)",
         "",
         "Put it all away, then send me another photo and I'll check.",
@@ -162,5 +163,29 @@ describe("prompt injection and personal data", () => {
     const expected = fallbackPlan(session.items, zones);
     expect(session.items.map((i) => i.destinationZoneId)).toEqual(expected.map((p) => p.zoneId));
     expect(session.phase).toBe("planned");
+  });
+});
+
+
+describe("model placement guardrails", () => {
+  it("enforces destinations for crockery, trash and daily items", () => {
+    const objects = [item(1, "mug"), item(2, "trash"), item(3, "phone", "daily")];
+    const suggestions = objects.map((i) => ({ itemId: i.id, zoneId: "A", reason: "model suggested storage" }));
+    expect(completePlan(suggestions, objects, zones).map((p) => p.zoneId)).toEqual(["kitchen", "toss", "desk"]);
+  });
+
+  it("uses meaningful rules when the model omits all placements", () => {
+    expect(completePlan([], [item(1, "charger"), item(2, "pen")], zones).map((p) => p.zoneId)).toEqual(["A", "B"]);
+  });
+
+  it("keeps power banks and cables with the charger", () => {
+    const objects = [item(1, "charger", "daily"), item(2, "cable"), item(3, "power bank")];
+    expect(completePlan([], objects, zones).map((p) => p.zoneId)).toEqual(["desk", "desk", "desk"]);
+    expect(fallbackPlan(objects, zones).map((p) => p.zoneId)).toEqual(["desk", "desk", "desk"]);
+  });
+
+  it("never accepts a placement into a full bin", () => {
+    expect(completePlan([{ itemId: 1, zoneId: "A", reason: "r" }], [item(1, "charger")],
+      [{ id: "A", label: "storage bin", full: true }])[0]?.zoneId).toBe("desk");
   });
 });
