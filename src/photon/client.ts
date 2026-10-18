@@ -4,6 +4,7 @@ import { mask } from "./media.js";
 import { MessageRouter } from "../router.js";
 import { SqliteSessionStore } from "../store/sessionStore.js";
 import { awaitingPhoto } from "../handlers/awaitingPhoto.js";
+import { interview } from "../handlers/interview.js";
 
 type App = Awaited<ReturnType<typeof Spectrum>>;
 type Inbound = App["messages"] extends AsyncIterable<infer T> ? T : never;
@@ -85,7 +86,8 @@ export async function startPhoton() {
 
   const router = new MessageRouter(new SqliteSessionStore(), {
     awaiting_photo: awaitingPhoto,
-    // TODO: interview, planned, guiding, verifying, complete handlers (features 02–06).
+    interview,
+    // TODO: planned, guiding, verifying, complete handlers (features 02–06).
   });
 
   for await (const msg of app.messages) {
