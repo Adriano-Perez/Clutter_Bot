@@ -14,10 +14,15 @@ const DETECTION_FAILED = "Sorry, I couldn't read that photo. Try sending it agai
 
 // Overlay boxes that match the summary: green for put away / kept on desk, red for still out,
 // numbered with the original item id. Unmatched detections aren't drawn.
-export function overlayItems(c: Comparison): { id: number; box: Box; color: string }[] {
+//
+// Still-out items also get a square badge. Red and green are the pair most often confused, so
+// colour alone would show a colourblind judge two identical overlays; the shape carries the same
+// information without it.
+export function overlayItems(c: Comparison): { id: number; box: Box; color: string; shape: "circle" | "square" }[] {
   return c.detections.flatMap((d) => {
     if (d.status === "unmatched" || d.itemId === undefined) return [];
-    return [{ id: d.itemId, box: d.box, color: d.status === "stillOut" ? RED : GREEN }];
+    const stillOut = d.status === "stillOut";
+    return [{ id: d.itemId, box: d.box, color: stillOut ? RED : GREEN, shape: stillOut ? "square" as const : "circle" as const }];
   });
 }
 

@@ -5,6 +5,12 @@ export type Box = [number, number, number, number]; // x1, y1, x2, y2 in normali
 export interface BoxedItem {
   box: Box;
   color?: string; // box and badge color; yellow when omitted
+  /**
+   * Redundant cue for the verify overlay. Colour alone can't carry "put away" vs "still out":
+   * red and green are the pair most commonly confused, so a judge with deuteranopia would see
+   * two identical overlays. A square badge means "still out" whatever the colour looks like.
+   */
+  shape?: "circle" | "square";
 }
 
 export interface OverlayZone {
@@ -14,11 +20,39 @@ export interface OverlayZone {
 
 const ROW_HEIGHT = 80;
 const BOX_COLOR = "#FFD400";
-const BOX_STROKE = 4;
-const BADGE_RADIUS = 16; // 32 px badge, above the 28 px minimum
-const BADGE_FONT_SIZE = 18;
 const ZONE_COLOR = "#1E6BFF";
-const ZONE_STROKE = 4;
+
+/**
+ * Badges and strokes scale with the photo's width, because the photo is displayed at the phone's
+ * width whatever its pixel size: a 32 px badge on a 1024 px-wide image is half the apparent size
+ * of the same badge on a 512 px one. Scaling on the short side instead would do nothing at all for
+ * a landscape desk photo, which is every real photo.
+ *
+ * Floored at the previous fixed size, and capped against the height so an extreme panorama can't
+ * produce badges taller than the picture.
+ */
+const BADGE_RADIUS_RATIO = 1 / 38;
+const MIN_BADGE_RADIUS = 16;
+const MAX_BADGE_HEIGHT_FRACTION = 1 / 6;
+const STROKE_RATIO = 1 / 190;
+const MIN_STROKE = 4;
+
+export interface OverlayScale {
+  badgeRadius: number;
+  fontSize: number;
+  stroke: number;
+}
+
+export function overlayScale(width: number, height: number): OverlayScale {
+  // Rounded first, then clamped, so rounding can't push the result past the cap.
+  const cap = Math.floor(height * MAX_BADGE_HEIGHT_FRACTION);
+  const badgeRadius = Math.max(MIN_BADGE_RADIUS, Math.min(Math.round(width * BADGE_RADIUS_RATIO), cap));
+  return {
+    badgeRadius,
+    fontSize: Math.round(badgeRadius * 1.15),
+    stroke: Math.round(Math.max(MIN_STROKE, width * STROKE_RATIO)),
+  };
+}
 
 function center([x1, y1, x2, y2]: Box): { x: number; y: number } {
   return { x: (x1 + x2) / 2, y: (y1 + y2) / 2 };
@@ -64,27 +98,37 @@ export async function renderDetections(
   items: readonly (BoxedItem & { id: number })[],
   zones: readonly OverlayZone[] = [],
 ): Promise<Buffer> {
+  const { badgeRadius, fontSize, stroke } = overlayScale(width, height);
+  const font = `font-family="Helvetica, Arial, sans-serif" font-size="${fontSize}" font-weight="bold"`;
+
   const zoneShapes = zones.map(({ id, box: [x1, y1, x2, y2] }) => {
-    const cx = clamp(x1, BADGE_RADIUS, width - BADGE_RADIUS);
-    const cy = clamp(y1, BADGE_RADIUS, height - BADGE_RADIUS);
+    const cx = clamp(x1, badgeRadius, width - badgeRadius);
+    const cy = clamp(y1, badgeRadius, height - badgeRadius);
     return (
-      `<rect x="${x1}" y="${y1}" width="${x2 - x1}" height="${y2 - y1}" fill="none" stroke="${ZONE_COLOR}" stroke-width="${ZONE_STROKE}" stroke-dasharray="14 8"/>` +
-      `<circle cx="${cx}" cy="${cy}" r="${BADGE_RADIUS}" fill="${ZONE_COLOR}" stroke="#fff" stroke-width="2"/>` +
-      `<text x="${cx}" y="${cy}" font-family="Helvetica, Arial, sans-serif" font-size="${BADGE_FONT_SIZE}" font-weight="bold" fill="#fff" text-anchor="middle" dominant-baseline="central">${escapeXml(id)}</text>`
+      `<rect x="${x1}" y="${y1}" width="${x2 - x1}" height="${y2 - y1}" fill="none" stroke="${ZONE_COLOR}" stroke-width="${stroke}" stroke-dasharray="${stroke * 3.5} ${stroke * 2}"/>` +
+      `<circle cx="${cx}" cy="${cy}" r="${badgeRadius}" fill="${ZONE_COLOR}" stroke="#fff" stroke-width="${Math.max(2, stroke / 2)}"/>` +
+      `<text x="${cx}" y="${cy}" ${font} fill="#fff" text-anchor="middle" dominant-baseline="central">${escapeXml(id)}</text>`
     );
   });
 
-  const rects = items.map(({ box: [x1, y1, x2, y2], color = BOX_COLOR }) => {
-    return `<rect x="${x1}" y="${y1}" width="${x2 - x1}" height="${y2 - y1}" fill="none" stroke="${escapeXml(color)}" stroke-width="${BOX_STROKE}"/>`;
-  });
+  // A dark hairline under every coloured box, so yellow still reads against a pale desk.
+  const rects = items.flatMap(({ box: [x1, y1, x2, y2], color = BOX_COLOR }) => [
+    `<rect x="${x1}" y="${y1}" width="${x2 - x1}" height="${y2 - y1}" fill="none" stroke="#00000055" stroke-width="${stroke + 3}"/>`,
+    `<rect x="${x1}" y="${y1}" width="${x2 - x1}" height="${y2 - y1}" fill="none" stroke="${escapeXml(color)}" stroke-width="${stroke}"/>`,
+  ]);
 
-  const badges = items.map(({ id, box: [x1, y1], color = BOX_COLOR }) => {
+  const badges = items.map(({ id, box: [x1, y1], color = BOX_COLOR, shape = "circle" }) => {
     const textColor = color === BOX_COLOR ? "#000" : "#fff";
-    const cx = clamp(x1, BADGE_RADIUS, width - BADGE_RADIUS);
-    const cy = clamp(y1, BADGE_RADIUS, height - BADGE_RADIUS);
+    const cx = clamp(x1, badgeRadius, width - badgeRadius);
+    const cy = clamp(y1, badgeRadius, height - badgeRadius);
+    const outline = Math.max(2, stroke / 2);
+    const plate =
+      shape === "square"
+        ? `<rect x="${cx - badgeRadius}" y="${cy - badgeRadius}" width="${badgeRadius * 2}" height="${badgeRadius * 2}" rx="${Math.round(badgeRadius / 4)}" fill="${escapeXml(color)}" stroke="#000" stroke-width="${outline}"/>`
+        : `<circle cx="${cx}" cy="${cy}" r="${badgeRadius}" fill="${escapeXml(color)}" stroke="#000" stroke-width="${outline}"/>`;
     return (
-      `<circle cx="${cx}" cy="${cy}" r="${BADGE_RADIUS}" fill="${escapeXml(color)}" stroke="#000" stroke-width="2"/>` +
-      `<text x="${cx}" y="${cy}" font-family="Helvetica, Arial, sans-serif" font-size="${BADGE_FONT_SIZE}" font-weight="bold" fill="${textColor}" text-anchor="middle" dominant-baseline="central">${escapeXml(String(id))}</text>`
+      plate +
+      `<text x="${cx}" y="${cy}" ${font} fill="${textColor}" text-anchor="middle" dominant-baseline="central">${escapeXml(String(id))}</text>`
     );
   });
 

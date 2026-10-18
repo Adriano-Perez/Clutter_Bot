@@ -1,6 +1,6 @@
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
-import { numberItems, renderDetections, type Box } from "../src/vision/overlay.js";
+import { numberItems, overlayScale, renderDetections, type Box } from "../src/vision/overlay.js";
 
 describe("numberItems", () => {
   it("numbers top row left-to-right, then the next row", () => {
@@ -17,6 +17,43 @@ describe("numberItems", () => {
       [2, "mug"],
       [3, "keys"],
     ]);
+  });
+});
+
+describe("overlayScale", () => {
+  it("grows the badge with the photo so a number stays readable on a phone", () => {
+    // The real landscape shapes the pipeline produces: 768 px for detection, 1024 px normalized.
+    const detect = overlayScale(768, 429);
+    const normalized = overlayScale(1024, 572);
+    expect(detect.badgeRadius).toBe(20);
+    expect(normalized.badgeRadius).toBe(27);
+    expect(normalized.stroke).toBeGreaterThan(detect.stroke);
+  });
+
+  it("scales on width, since a landscape photo is shown at the phone's width", () => {
+    // Scaling on the short side would leave every real desk photo at the old fixed 16.
+    expect(overlayScale(1024, 572).badgeRadius).toBeGreaterThan(16);
+  });
+
+  it("never goes below the old fixed size", () => {
+    const tiny = overlayScale(120, 90);
+    expect(tiny.badgeRadius).toBe(16);
+    expect(tiny.stroke).toBe(4);
+  });
+
+  it("keeps the digit inside its badge", () => {
+    for (const [w, h] of [[768, 429], [1024, 768], [1024, 1024], [400, 300]]) {
+      const { badgeRadius, fontSize } = overlayScale(w!, h!);
+      // A two-digit number at this font is roughly 1.2x the font size wide; it has to fit the circle.
+      expect(fontSize * 1.2).toBeLessThanOrEqual(badgeRadius * 2);
+    }
+  });
+
+  it("caps against the height, so a panorama can't get badges taller than the picture", () => {
+    const panorama = overlayScale(4000, 400);
+    expect(panorama.badgeRadius).toBeLessThanOrEqual(400 / 6);
+    // Without the cap this would be 4000/38 ≈ 105, taller than half the image.
+    expect(panorama.badgeRadius).toBeLessThan(105);
   });
 });
 
