@@ -96,6 +96,6 @@ export async function startPhoton(store: SessionStore = new SqliteSessionStore()
 
   for await (const msg of app.messages) {
     // One bad message must not kill the loop.
-    await handleMessage(msg, app, router).catch((err) => console.error("photon: handleMessage failed", err));
+    void handleMessage(msg, app, router).catch((err) => console.error("photon: handleMessage failed", err));
   }
 }

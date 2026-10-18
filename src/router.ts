@@ -23,12 +23,25 @@ export type PhaseHandler = (session: Session, msg: InboundMessage) => Promise<Re
 export const isPhoto = (c: InboundContent) => c.type === "attachment" && c.mimeType.startsWith("image/");
 
 export class MessageRouter {
+  private pending = new Map<string, Promise<void>>();
+
+  /** Order each person's events without making every other person wait for their model call. */
+  route(msg: InboundMessage): Promise<void> {
+    const previous = this.pending.get(msg.sender) ?? Promise.resolve();
+    const current = previous.catch(() => {}).then(() => this.handle(msg));
+    this.pending.set(msg.sender, current);
+    void current.finally(() => {
+      if (this.pending.get(msg.sender) === current) this.pending.delete(msg.sender);
+    }).catch(() => {});
+    return current;
+  }
+
   constructor(
     private store: SessionStore,
     private handlers: Partial<Record<Session["phase"], PhaseHandler>>,
   ) {}
 
-  async route(msg: InboundMessage) {
+  private async handle(msg: InboundMessage) {
     // Mark before handling: at-most-once, a crash mid-handler drops the event rather than double-replying.
     if (!this.store.markSeen(msg.eventId)) {
       console.log(`router: skip seen event ${msg.eventId}`);

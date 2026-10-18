@@ -90,3 +90,38 @@ test("reset and restart also start over", async () => {
     expect(store.get("+12065550142")!.phase).toBe("awaiting_photo");
   }
 });
+
+
+test("a slow sender does not block another sender, while same-sender events stay ordered", async () => {
+  const store = new SqliteSessionStore(":memory:");
+  let release!: () => void;
+  const waiting = new Promise<void>((resolve) => { release = resolve; });
+  const events: string[] = [];
+  const router = new MessageRouter(store, {
+    awaiting_photo: async (_session, msg) => {
+      events.push(msg.eventId);
+      if (msg.eventId === "slow") await waiting;
+      return [];
+    },
+  });
+  const msg = (eventId: string, sender: string): InboundMessage => ({
+    eventId, sender, content: { type: "text", text: "hi" }, send: async () => {},
+  });
+  const first = router.route(msg("slow", "alice"));
+  const second = router.route(msg("queued", "alice"));
+  await router.route(msg("fast", "bob"));
+  expect(events).toEqual(["slow", "fast"]);
+  release();
+  await Promise.all([first, second]);
+  expect(events).toEqual(["slow", "fast", "queued"]);
+});
+
+test("a failed event does not poison a sender's queue", async () => {
+  const store = new SqliteSessionStore(":memory:");
+  const handler = vi.fn().mockRejectedValueOnce(new Error("broken image")).mockResolvedValueOnce([]);
+  const router = new MessageRouter(store, { awaiting_photo: handler });
+  const msg = (eventId: string): InboundMessage => ({ eventId, sender: "alice", content: { type: "other" }, send: async () => {} });
+  await expect(router.route(msg("bad"))).rejects.toThrow("broken image");
+  await router.route(msg("good"));
+  expect(handler).toHaveBeenCalledTimes(2);
+});
