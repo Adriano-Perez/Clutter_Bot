@@ -40,6 +40,19 @@ One loop, all of it over iMessage:
 | `start over` | fresh session |
 | `ping` | `pong` |
 
+Once you have a plan, you can work through it a step at a time instead of all at once:
+
+| Text | What happens |
+| --- | --- |
+| `next` | `Step 2 of 5: Put the cable (2) in A storage bin.` |
+| `done` | `Nice — 2 of 5 done.` and the next step |
+| `A is full` | moves everything still to do out of A, and carries on |
+
+Saying `done` records a **claim**, never a verification. Only the second photo can do that.
+
+Every plan also comes with a link to a page you can open on your phone: the numbered before photo,
+the plan, and the green/red after photo once there is one.
+
 ## What it won't pretend
 
 It recognises **20 kinds of desk item** and **only counts what's visible**. Every verdict ends with
@@ -67,10 +80,11 @@ cp .env.example .env
 | `GEMINI_TEXT_FALLBACK_MODELS` | tried in order when the first is overloaded |
 | `GEMINI_IMAGE_MODEL` | the preview illustration; needs a billing-enabled key |
 | `PREVIEW` | `off` disables the preview |
+| `PUBLIC_BASE_URL` | public address of this server; blank means no plan link is sent |
 
 ```sh
 npm run dev        # Hono on :3000 plus the Photon listener
-npm test           # 143 tests, fully offline
+npm test           # 182 tests, fully offline
 npm run typecheck
 npm run reset      # clear sessions between demo runs
 ```
@@ -80,15 +94,20 @@ Text a photo of your desk to the Photon line. `ping` checks it's listening.
 ## Architecture
 
 ```
-iMessage ─▶ Photon Spectrum ─▶ MessageRouter ─┬─▶ global commands (help/status/where/correct)
-                                              │
-                                              └─▶ phase handler
-                                                    ├─ quality gate   (sharp, local)
-                                                    ├─ Perceptron     detect items + zones
-                                                    ├─ Gemini         parse answers, build plan
-                                                    └─ Gemini image   "after" illustration
-                                              │
-                                              └─▶ SQLite session store (data/clutterbot.db)
+iMessage ─▶ Photon Spectrum ─▶ MessageRouter ─┬─▶ global commands
+            │                                 │     help · status · where does X go
+            │                                 │     3 is a mug · next · done · A is full
+            │                                 │
+            │                                 ├─▶ phase handler
+            │                                 │     ├─ quality gate   (sharp, local)
+            │                                 │     ├─ Perceptron     detect items + zones
+            │                                 │     ├─ Gemini         parse answers, build plan
+            │                                 │     └─ Gemini image   "after" illustration
+            │                                 │
+            │                                 └─▶ SQLite session store
+            │                                       (data/clutterbot.db)
+            │                                              │
+Hono ───────┴──▶ GET /s/:id  plan page ───────────────────┘
 ```
 
 - `src/photon/` — Spectrum client, photo download, HEIC → JPEG, PII-masked logging.
@@ -99,6 +118,8 @@ iMessage ─▶ Photon Spectrum ─▶ MessageRouter ─┬─▶ global command
   zone filtering, and the numbered SVG overlay drawn with sharp.
 - `src/plan.ts` — destinations, the rule-based planner, and the grouped plan text.
 - `src/llm/` — `json()` for schema-constrained text, `editImage()` for the preview.
+- `src/web/` — the `/s/:id` plan page. Server-rendered, no scripts, photos served by session rather
+  than by filesystem path.
 - `src/store/sessionStore.ts` — one JSON document per session, plus a seen-events table for dedupe.
 
 ## How we use Perceptron
