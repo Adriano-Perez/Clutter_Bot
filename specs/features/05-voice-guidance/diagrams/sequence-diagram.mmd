@@ -1,0 +1,31 @@
+sequenceDiagram
+  autonumber
+  actor U as User
+  participant PS as Photon SMS number
+  participant EL as ElevenLabs agent
+  participant T as VoiceToolsRouter
+  participant GS as GuidanceService
+  participant W as PostCallWebhook
+  participant IM as Photon iMessage line
+  U->>PS: phone call
+  PS->>EL: SIP INVITE over TLS
+  EL->>T: get_session(caller_id)
+  T->>GS: summary(session)
+  GS-->>T: 2 of 7 done, next is step 3
+  T-->>EL: say text
+  EL-->>U: "You're 2 of 7 in. Put the charger, number 3, in bin A."
+  U->>EL: "Done"
+  EL->>T: mark_done(session, 3)
+  T->>GS: markDone(claimed, voice)
+  GS-->>T: next step 4
+  EL-->>U: "Nice. Next, the pens, number 5, into the cup."
+  U->>EL: "The cup's full"
+  EL->>T: report_blocker(session, "cup full")
+  T->>GS: reportBlocker
+  GS-->>T: moved 5 to the drawer
+  EL-->>U: "No problem, pens go in the top drawer instead."
+  U->>PS: hang up
+  EL-)W: post_call_transcription (HMAC)
+  W->>GS: store summary
+  W->>IM: send summary
+  IM-->>U: "4 of 7 done. Next up: notebook. Send a photo to check."

@@ -1,0 +1,39 @@
+flowchart LR
+  user(["User's iPhone"])
+  subgraph photon["Photon 2.0 beta"]
+    im["Shared iMessage line"]
+    sms["SMS number + Voice profile"]
+  end
+  el["ElevenLabs agent"]
+  subgraph backend["ClutterBot server: Node 22 + TypeScript + Hono"]
+    gw["01 iMessage gateway"]
+    det["02 Item detection"]
+    int["03 Context interview"]
+    plan["04 Organization plan + GuidanceService"]
+    voice["05 Voice tools + post-call webhook"]
+    ver["06 Photo verification + ledger"]
+    db[("SQLite sessions")]
+    page["Web plan page /s/:id"]
+  end
+  perc["Perceptron Mk1.5"]
+  gem["Gemini Flash + Nano Banana 2"]
+  user -- "photos and texts" --> im
+  user -- "phone call" --> sms
+  user -- "opens link" --> page
+  im <--> gw
+  sms -- "SIP over TLS" --> el
+  el -- "server tools + webhook" --> voice
+  gw --> det
+  gw --> int
+  gw --> ver
+  det --> perc
+  ver --> perc
+  int --> gem
+  plan --> gem
+  voice --> plan
+  int --> plan
+  ver --> plan
+  det --> db
+  plan --> db
+  ver --> db
+  page --> db

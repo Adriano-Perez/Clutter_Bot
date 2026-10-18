@@ -1,0 +1,26 @@
+flowchart LR
+  user(["User (on phone call)"])
+  photon(["Photon SMS number"])
+  el(["ElevenLabs agent"])
+  subgraph sys["ClutterBot backend"]
+    uc1(("Resume session by caller ID"))
+    uc2(("Hear next step"))
+    uc3(("Report step done"))
+    uc4(("Report blocker and re-plan"))
+    uc5(("Ask where an item goes"))
+    uc6(("Receive iMessage summary after call"))
+  end
+  user --- uc2
+  user --- uc3
+  user --- uc4
+  user --- uc5
+  user --- uc6
+  photon --- uc1
+  el --- uc1
+  el --- uc2
+  el --- uc3
+  el --- uc4
+  el --- uc5
+  uc2 -. include .-> uc1
+  uc3 -. include .-> uc1
+  uc4 -. include .-> uc1

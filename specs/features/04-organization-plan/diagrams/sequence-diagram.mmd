@@ -1,0 +1,30 @@
+sequenceDiagram
+  autonumber
+  actor U as User
+  participant I as InterviewHandler
+  participant PL as Planner
+  participant G as Gemini Flash
+  participant V as PlanValidator
+  participant PG as PreviewGenerator
+  participant NB as Nano Banana 2
+  participant GS as GuidanceService
+  I->>PL: build(session)
+  PL->>G: items + zones + rules (JSON schema)
+  G-->>PL: placements + steps
+  PL->>V: validate(plan)
+  alt violations
+    V-->>PL: repaired plan
+  end
+  PL-->>I: plan
+  I-->>U: numbered steps + call number + /s/:id link
+  I-)PG: generate(photo, plan) async
+  PG->>NB: edit photo, rearrange only, add nothing
+  NB-->>PG: after image (or timeout at 30 s)
+  PG-->>U: preview labeled "Illustration"
+  Note over U,GS: later, during guidance
+  U->>GS: "A is full"
+  GS->>PL: replan(session, blocker)
+  PL->>G: undone items only
+  G-->>PL: new placements
+  PL->>V: validate
+  GS-->>U: "Moved 3 and 6 to the drawer since A is full"

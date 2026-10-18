@@ -1,0 +1,19 @@
+stateDiagram-v2
+  [*] --> seen: before photo detection
+  seen --> claimed: user says done (text or voice)
+  seen --> still_here: after photo, IoU >= 0.3 with before box
+  claimed --> verified: after photo, box inside destination zone
+  claimed --> not_visible: after photo, not detected
+  claimed --> wrong_spot: after photo, outside destination
+  seen --> verified: after photo, inside destination
+  seen --> not_visible: after photo, not detected
+  still_here --> claimed: user says done again
+  wrong_spot --> claimed: user moves it
+  not_visible --> verified: later photo shows it in zone
+  not_visible --> verified_video: stretch, video clip evidence
+  verified --> [*]
+  verified_video --> [*]
+  note right of not_visible
+    Shown to user as
+    "off the desk, can't confirm"
+  end note

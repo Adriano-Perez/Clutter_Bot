@@ -1,0 +1,54 @@
+classDiagram
+  direction LR
+  class Planner {
+    +build(session) Plan
+    +replan(session, blocker) Plan
+  }
+  class PlanValidator {
+    +validate(plan, session) Violation[]
+    +repair(plan, violations) Plan
+  }
+  class GuidanceService {
+    +next(session) Step
+    +markDone(session, stepN, source) Step
+    +reportBlocker(session, text) ReplanResult
+  }
+  class PreviewGenerator {
+    +generate(photo, plan) Buffer
+    -timeoutMs: 30000
+  }
+  class PlanFormatter {
+    +toText(plan) string
+    +toPageModel(session) PageModel
+  }
+  class PlanPage {
+    +GET /s/:id
+    +GET /s/:id.json
+  }
+  class GeminiClient {
+    +json(prompt, schema) object
+    +editImage(photo, prompt) Buffer
+  }
+  class Plan {
+    +placements: Placement[]
+    +steps: Step[]
+  }
+  class Placement {
+    +itemId: int
+    +zoneId: string
+    +reason: string
+  }
+  class Step {
+    +n: int
+    +itemId: int
+    +instruction: string
+    +done: bool
+  }
+  Planner --> GeminiClient
+  Planner --> PlanValidator
+  PreviewGenerator --> GeminiClient
+  GuidanceService --> Planner
+  PlanPage --> PlanFormatter
+  Plan *-- Placement
+  Plan *-- Step
+  Planner ..> Plan

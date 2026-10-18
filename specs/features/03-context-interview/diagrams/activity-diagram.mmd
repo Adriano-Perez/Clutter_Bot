@@ -1,0 +1,15 @@
+stateDiagram-v2
+  [*] --> AskUsage: overlay sent
+  AskUsage --> ParseAnswer: user replies
+  AskDiscard --> ParseAnswer: user replies
+  AskZones --> ParseAnswer: user replies
+  ParseAnswer --> Clarify: ambiguous reference
+  Clarify --> ParseAnswer: user picks
+  ParseAnswer --> Echo: facts applied
+  ParseAnswer --> Defaults: "skip"
+  Echo --> AskDiscard: after usage
+  Echo --> AskZones: after discard, zones exist
+  Echo --> BuildPlan: after discard, no zones
+  Echo --> BuildPlan: after zones
+  Defaults --> BuildPlan
+  BuildPlan --> [*]: phase = planned

@@ -1,0 +1,31 @@
+sequenceDiagram
+  autonumber
+  actor U as User (iPhone)
+  participant P as Photon line
+  participant L as EventLoop
+  participant R as MessageRouter
+  participant S as SessionStore
+  participant M as MediaStore
+  participant H as PhaseHandler
+  U->>P: iMessage with photo
+  P-->>L: message event (id, sender, attachmentId)
+  L->>L: dedupe by event id
+  L->>R: route(msg)
+  R->>S: getOrCreate(sender)
+  S-->>R: session (phase)
+  R->>P: sendMessage("Got it — looking at your photo…")
+  P-->>U: acknowledgement (under 2 s)
+  loop until ready (max 5)
+    R->>P: downloadAttachment(id)
+    alt 409 ATTACHMENT_NOT_READY
+      P-->>R: Retry-After 5s
+    else 200
+      P-->>R: image bytes
+    end
+  end
+  R->>M: save(sessionId, bytes)
+  R->>H: handle(msg, session)
+  H-->>R: Reply[] (text + overlay image)
+  R->>S: save(session)
+  R->>P: send replies (idempotency keys)
+  P-->>U: overlay + question

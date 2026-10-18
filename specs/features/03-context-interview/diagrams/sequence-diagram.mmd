@@ -1,0 +1,21 @@
+sequenceDiagram
+  autonumber
+  actor U as User
+  participant R as MessageRouter
+  participant I as InterviewHandler
+  participant A as AnswerParser
+  participant G as Gemini Flash
+  participant Q as QuestionBank
+  participant S as SessionStore
+  U->>R: "the mug and 4 every day"
+  R->>I: handle(msg, session)
+  I->>A: parse(text, items)
+  A->>A: local parse finds 4
+  A->>G: resolve "the mug" against item labels (JSON schema)
+  G-->>A: itemIds [2]
+  A-->>I: usage daily for items 2 and 4
+  I->>S: save(session)
+  I->>Q: next(session)
+  Q-->>I: discard question
+  I-->>R: echo line + next question
+  R-->>U: "Got it: 2 mug + 4 notebook daily. Anything here that's trash?"

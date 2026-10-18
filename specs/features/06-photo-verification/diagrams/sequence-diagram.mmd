@@ -1,0 +1,27 @@
+sequenceDiagram
+  autonumber
+  actor U as User
+  participant R as MessageRouter
+  participant VH as VerificationHandler
+  participant V as Verifier
+  participant P as Perceptron Mk1.5
+  participant C as EvidenceClassifier
+  participant L as Ledger
+  participant O as OverlayRenderer
+  participant GS as GuidanceService
+  U->>R: after photo
+  R->>VH: handle(photo, session in guiding)
+  VH->>V: verify(photo, plannedItems)
+  V->>P: is each label visible? boxes (JSON schema)
+  P-->>V: label, visible, box for each
+  V-->>VH: AfterResult[]
+  loop each item
+    VH->>C: classify(item, beforeBox, result, zones)
+    C-->>VH: verified / not_visible / still_here / wrong_spot
+    VH->>L: append(item, state, photo)
+  end
+  VH->>GS: reopen steps for still_here and wrong_spot
+  VH->>O: renderVerdict(photo, items)
+  O-->>VH: verdict.png
+  VH-->>R: overlay + summary
+  R-->>U: "3 verified, 2 off the desk (can't confirm), 1 still here"

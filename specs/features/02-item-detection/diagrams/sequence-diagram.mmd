@@ -1,0 +1,31 @@
+sequenceDiagram
+  autonumber
+  participant R as MessageRouter
+  participant H as DetectionHandler
+  participant N as PhotoNormalizer
+  participant Q as QualityGate
+  participant D as Detector
+  participant P as Perceptron Mk1.5
+  participant O as OverlayRenderer
+  R->>H: handle(photo msg, session)
+  H->>N: normalize(buf)
+  N-->>H: photo 1024px
+  H->>Q: check(photo)
+  alt too dark / blurry
+    Q-->>H: fail(tip)
+    H-->>R: "Retake: turn on a light and step back"
+  else ok
+    par items
+      H->>D: detectItems(photo)
+      D->>P: box annotations + JSON schema
+      P-->>D: items with boxes
+    and zones
+      H->>D: detectZones(photo)
+      D->>P: polygon annotations + JSON schema
+      P-->>D: zones with polygons
+    end
+    D-->>H: Item[] sorted and numbered, Zone[]
+    H->>O: renderDetections(photo, items, zones)
+    O-->>H: overlay.png
+    H-->>R: overlay + legend + first interview question
+  end

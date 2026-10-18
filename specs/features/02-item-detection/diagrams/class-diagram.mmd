@@ -1,0 +1,51 @@
+classDiagram
+  direction LR
+  class DetectionHandler {
+    +handle(msg, session) Reply[]
+  }
+  class PhotoNormalizer {
+    +normalize(buf) NormalizedPhoto
+  }
+  class NormalizedPhoto {
+    +buf: Buffer
+    +width: int
+    +height: int
+  }
+  class QualityGate {
+    +check(photo) QualityResult
+  }
+  class PerceptronClient {
+    +complete(req) Response
+    -timeoutMs: int
+  }
+  class Detector {
+    +detectItems(photo) Item[]
+    +detectZones(photo) Zone[]
+    -toPixels(coords, w, h) Box
+  }
+  class OverlayRenderer {
+    +renderDetections(photo, items, zones) Buffer
+  }
+  class CorrectionParser {
+    +parse(text) Correction
+  }
+  class Item {
+    +id: int
+    +label: string
+    +box: Box
+    +evidence: Evidence[]
+  }
+  class Zone {
+    +id: string
+    +label: string
+    +polygon: Point[]
+  }
+  DetectionHandler --> PhotoNormalizer
+  DetectionHandler --> QualityGate
+  DetectionHandler --> Detector
+  DetectionHandler --> OverlayRenderer
+  DetectionHandler --> CorrectionParser
+  Detector --> PerceptronClient
+  Detector ..> Item
+  Detector ..> Zone
+  PhotoNormalizer ..> NormalizedPhoto

@@ -1,0 +1,50 @@
+classDiagram
+  direction LR
+  class PhotonClient {
+    +listMessages(cursor) Message[]
+    +onEvent(handler) void
+    +sendMessage(to, text, idemKey) void
+    +sendAttachment(to, filePath, idemKey) void
+    +downloadAttachment(attachmentId) Buffer
+  }
+  class EventLoop {
+    -cursor: string
+    +start() void
+    -isSeen(eventId) bool
+  }
+  class MessageRouter {
+    +route(msg: InboundMessage) Reply[]
+    -handleGlobalCommand(msg, session) Reply[]
+  }
+  class PhaseHandler {
+    <<interface>>
+    +handle(msg, session) Reply[]
+  }
+  class SessionStore {
+    <<interface>>
+    +getOrCreate(userHandle) Session
+    +save(session) void
+  }
+  class SqliteSessionStore
+  class MediaStore {
+    +save(sessionId, buf, mime) string
+    +url(path) string
+  }
+  class Replier {
+    +send(userHandle, replies: Reply[], sourceId) void
+  }
+  class InboundMessage {
+    +id: string
+    +sender: string
+    +text?: string
+    +attachmentIds: string[]
+  }
+  EventLoop --> PhotonClient
+  EventLoop --> MessageRouter
+  MessageRouter --> SessionStore
+  MessageRouter --> PhaseHandler
+  MessageRouter --> MediaStore
+  MessageRouter --> Replier
+  Replier --> PhotonClient
+  SqliteSessionStore ..|> SessionStore
+  MessageRouter ..> InboundMessage
