@@ -18,6 +18,7 @@ export interface DetectPhotoResult {
   zones: Zone[];
   legend: string;
   ms: number;
+  preStored: LabeledBox[]; // items dropped by dropInsideZones (already in a bin); [] without the flag
   // Intermediate results for the spike script and debugging; not part of the Session.
   debug: {
     width: number;
@@ -96,9 +97,9 @@ export async function detectPhoto(
   const rawItems = toBoxes(itemsResult);
   const boxZones = withoutMugZones(zonesOutcome.zones ?? [], rawItems);
   const cleaned = cleanDetections(rawItems, boxZones, photo.width);
-  const loose = dropInsideZones
-    ? cleaned.filter((d) => !boxZones.some((z) => fractionInside(d.box, z.box) >= INSIDE_ZONE))
-    : cleaned;
+  const isStored = (d: LabeledBox) => boxZones.some((z) => fractionInside(d.box, z.box) >= INSIDE_ZONE);
+  const loose = dropInsideZones ? cleaned.filter((d) => !isStored(d)) : cleaned;
+  const preStored = dropInsideZones ? cleaned.filter(isStored).map(({ label, box }) => ({ label, box })) : [];
   const numbered = numberItems(loose);
 
   const at = new Date().toISOString();
@@ -118,6 +119,7 @@ export async function detectPhoto(
     zones,
     legend: buildLegend(items, zones),
     ms: Math.round(performance.now() - start),
+    preStored,
     debug: {
       width: photo.width,
       height: photo.height,

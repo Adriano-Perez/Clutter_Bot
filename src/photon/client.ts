@@ -6,6 +6,7 @@ import { SqliteSessionStore } from "../store/sessionStore.js";
 import { awaitingPhoto } from "../handlers/awaitingPhoto.js";
 import { interview } from "../handlers/interview.js";
 import { planned } from "../handlers/planned.js";
+import { complete } from "../handlers/complete.js";
 
 type App = Awaited<ReturnType<typeof Spectrum>>;
 type Inbound = App["messages"] extends AsyncIterable<infer T> ? T : never;
@@ -89,7 +90,8 @@ export async function startPhoton() {
     awaiting_photo: awaitingPhoto,
     interview,
     planned,
-    // TODO: guiding, verifying, complete handlers (features 02–06).
+    complete,
+    // TODO: guiding, verifying handlers (features 02–06).
   });
 
   for await (const msg of app.messages) {

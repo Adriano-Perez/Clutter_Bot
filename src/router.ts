@@ -19,6 +19,8 @@ export interface InboundMessage {
 
 export type PhaseHandler = (session: Session, msg: InboundMessage) => Promise<Reply[]>;
 
+const START_OVER = new Set(["start over", "reset", "restart"]);
+
 export const isPhoto = (c: InboundContent) => c.type === "attachment" && c.mimeType.startsWith("image/");
 
 export class MessageRouter {
@@ -41,7 +43,12 @@ export class MessageRouter {
       this.store.save(session);
       return msg.send({ type: "text", text: "pong" });
     }
-    // TODO: other global commands (start over, help, status, where does <item> go?) — FR-GW-07.
+    // FR-GW-07 (start over only; help, status, where does <item> go? are still TODO).
+    if (msg.content.type === "text" && START_OVER.has(msg.content.text.trim().toLowerCase())) {
+      resetSession(session);
+      this.store.save(session);
+      return msg.send({ type: "text", text: "Fresh start. Send me a photo of your desk." });
+    }
 
     const handler = this.handlers[session.phase];
     if (!handler) {
@@ -55,6 +62,13 @@ export class MessageRouter {
     this.store.save(session);
     for (const r of replies) await msg.send(r);
   }
+}
+
+/** Replaces the session's contents in place with a fresh one (new id, phase awaiting_photo). */
+export function resetSession(session: Session): void {
+  const fresh = newSession(session.userHandle);
+  for (const key of Object.keys(session) as (keyof Session)[]) delete (session as Partial<Session>)[key];
+  Object.assign(session, fresh);
 }
 
 function newSession(userHandle: string): Session {
