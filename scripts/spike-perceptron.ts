@@ -1,5 +1,5 @@
 // Phase 0 spike: compare Perceptron detect settings on one photo (TC-DET-01 latency).
-// Usage: npx tsx scripts/spike-perceptron.ts <photo path> [--max-side 768]
+// Usage: npx tsx scripts/spike-perceptron.ts <photo path> [--max-side 768] [--compare]
 import "dotenv/config";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -41,12 +41,15 @@ function formatBoxes(items: readonly LabeledBox[]): string {
 async function main(): Promise<void> {
   const { values, positionals } = parseArgs({
     allowPositionals: true,
-    options: { "max-side": { type: "string", default: "768" } },
+    options: {
+      "max-side": { type: "string", default: "768" },
+      compare: { type: "boolean", default: false }, // also run the slow open-detection calls
+    },
   });
   const photoPath = positionals[0];
   const maxSide = Number(values["max-side"]);
   if (!photoPath || !Number.isInteger(maxSide) || maxSide <= 0) {
-    console.error("Usage: npx tsx scripts/spike-perceptron.ts <photo path> [--max-side 768]");
+    console.error("Usage: npx tsx scripts/spike-perceptron.ts <photo path> [--max-side 768] [--compare]");
     process.exit(1);
   }
 
@@ -118,7 +121,7 @@ async function main(): Promise<void> {
   const wallMs = Math.round(performance.now() - start);
   timings.push({ call: "items+zones wall", items: "-", ms: wallMs, finish: "-" });
 
-  for (const call of comparisonCalls) await runCall(call);
+  if (values.compare) for (const call of comparisonCalls) await runCall(call);
 
   if (itemsResult) {
     if (!rawZones) console.log("\nzones call failed: container filter skipped");
@@ -129,7 +132,7 @@ async function main(): Promise<void> {
       console.log(`\ndropped ${rawZones.length - zones.length} "cup" zone(s) on a mug; zones now:`);
       for (const z of zones) console.log(`  ${z.id}  ${z.label}  [${z.box.join(", ")}]`);
     }
-    const after = cleanDetections(before, zones);
+    const after = cleanDetections(before, zones, photo.width);
     console.log(`\nbefore cleanup (${before.length}):\n${formatBoxes(before)}`);
     console.log(`after cleanup (${after.length}):\n${formatBoxes(after)}`);
 
