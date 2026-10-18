@@ -84,7 +84,7 @@ cp .env.example .env
 
 ```sh
 npm run dev        # Hono on :3000 plus the Photon listener
-npm test           # 182 tests, fully offline
+npm test           # 205 tests, fully offline
 npm run typecheck
 npm run reset      # clear sessions between demo runs
 ```
