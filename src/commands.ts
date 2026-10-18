@@ -11,6 +11,7 @@ import {
   zoneName,
 } from "./plan.js";
 import { resetSession } from "./session.js";
+import { SYNONYMS } from "./vision/cleanup.js";
 import { CANONICAL_LABELS } from "./vision/labels.js";
 
 const text = (t: string): Reply[] => [{ type: "text", text: t }];
@@ -76,6 +77,9 @@ const GENERAL_RULE: Record<string, string> = {
   bowl: "Bowls go to the kitchen, not into a bin.",
   pillow: "Pillows belong on the bed.",
   blanket: "Blankets belong on the bed.",
+  toy: "Toys go together in a toy box or storage bin.",
+  "stuffed animal": "Stuffed animals go in a toy box or storage basket.",
+  "board game": "Board games go in a box or on a shelf.",
   "sticky note": "Sticky notes stay on the desk — they're there to be read.",
   glasses: "Glasses stay on the desk, where you'll find them.",
   "power bank": "A power bank goes in a bin with the charger, unless you use it every day.",
@@ -86,9 +90,12 @@ function generalRule(label: string): string {
 }
 
 // Longest label first, so "water bottle" wins over nothing and a plural still matches.
-const LABEL_PATTERNS = [...CANONICAL_LABELS]
-  .sort((a, b) => b.length - a.length)
-  .map((label) => ({ label, re: new RegExp(String.raw`\b${label}s?\b`, "i") }));
+const LABEL_PATTERNS = [
+  ...CANONICAL_LABELS.map((label) => [label, label] as const),
+  ...Object.entries(SYNONYMS),
+]
+  .sort(([a], [b]) => b.length - a.length)
+  .map(([word, label]) => ({ label, re: new RegExp(String.raw`\b${word}s?\b`, "i") }));
 
 /** The canonical item label named in the text, if any. */
 export function findLabel(raw: string): string | undefined {

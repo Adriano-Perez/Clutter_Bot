@@ -152,7 +152,7 @@ describe("prompt injection and personal data", () => {
         "Put it all away, then send me another photo and I'll check.",
       ].join("\n"),
     );
-    expect(sendPreview).toHaveBeenCalledWith("data/media/0142/1.jpg", expect.any(Array), zones, send, undefined);
+    expect(sendPreview).toHaveBeenCalledWith("data/media/0142/1.jpg", expect.any(Array), session.zones, send, undefined);
   });
 
   it("uses the fallback plan when Gemini output fails validation", async () => {
@@ -194,4 +194,12 @@ describe("model placement guardrails", () => {
 it("does not use a pen cup as generic storage for a laptop or charger", () => {
   expect(fallbackPlan([item(1, "laptop"), item(2, "charger")], [{ id: "A", label: "pen cup" }])
     .map((p) => p.zoneId)).toEqual(["desk", "desk"]);
+});
+
+
+it("places toys in suitable storage and keeps each toy in the plan", () => {
+  const objects = [item(1, "toy"), item(2, "toy"), item(3, "stuffed animal"), item(4, "board game")];
+  const storage = [{ id: "A", label: "closet" }, { id: "B", label: "toy box" }];
+  expect(fallbackPlan(objects, storage).map((p) => [p.itemId, p.zoneId])).toEqual([[1, "B"], [2, "B"], [3, "B"], [4, "B"]]);
+  expect(fallbackPlan(objects, [])[0]?.zoneId).toBe("off-desk");
 });

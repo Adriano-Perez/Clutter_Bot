@@ -1,6 +1,6 @@
 import type { Item, Step, Zone } from "./types.js";
 
-export type ZoneRef = Pick<Zone, "id" | "label"> & Pick<Partial<Zone>, "full">;
+export type ZoneRef = Pick<Zone, "id" | "label"> & Pick<Partial<Zone>, "full" | "box">;
 export type Placement = { itemId: number; zoneId: string; reason: string };
 
 // Pseudo-zones every plan can use alongside the zones detected in the photo.
@@ -74,6 +74,12 @@ export function fallbackPlan(items: Item[], zones: ZoneRef[]): Placement[] {
     if (i.label === "backpack")
       return { itemId: i.id, zoneId: OFF_DESK.id, reason: "too big for a bin" };
 
+    if (["toy", "stuffed animal", "board game"].includes(i.label)) {
+      const toyStorage = prefer("toy box", "storage bin", "storage basket", "box", "shelf", "bookshelf");
+      return { itemId: i.id, zoneId: toyStorage?.id ?? OFF_DESK.id,
+        reason: toyStorage ? "keep toys together in storage" : "choose a toy storage spot outside this view" };
+    }
+
     // Filing someone's notes or their glasses away is unhelpful, however tidy it looks.
     if (i.label === "sticky note") return { itemId: i.id, zoneId: DESK.id, reason: "it's there to be read" };
     if (i.label === "glasses") return { itemId: i.id, zoneId: DESK.id, reason: "so you can find them" };
@@ -101,7 +107,7 @@ export function completePlan(placements: Placement[], items: Item[], zones: Zone
   const planned = items.map((item, index) => {
     const rule = fallback[index]!;
     const suggested = byItem.get(item.id);
-    const specificStorage = ["clothes", "shoes", "book", "pen"].includes(item.label) && rule.zoneId !== "desk";
+    const specificStorage = ["clothes", "shoes", "book", "pen", "toy", "stuffed animal", "board game"].includes(item.label) && rule.zoneId !== "desk";
     if (!suggested || item.usage === "daily" || fixed.has(item.label) || specificStorage) return rule;
     // A generic item cannot be tossed or sent to the kitchen just because a model suggests it.
     if ([TOSS.id, KITCHEN.id, OFF_DESK.id].includes(suggested.zoneId)) return rule;
@@ -225,7 +231,7 @@ export function replanAwayFrom(
 ): { moved: Item[]; to: ZoneRef } {
   const alternatives = zones.filter((z) => z.id !== blockedZoneId && !z.full);
   const to = alternatives.find((z) => z.label === "storage bin") ??
-    alternatives.find((z) => ["box", "drawer", "tray", "shelf", "bookshelf", "closet", "dresser", "nightstand"].includes(z.label)) ?? DESK;
+    alternatives.find((z) => ["toy box", "storage basket", "box", "drawer", "tray", "shelf", "bookshelf", "closet", "dresser", "nightstand"].includes(z.label)) ?? DESK;
 
   const moved = items.filter((i) => i.destinationZoneId === blockedZoneId && !isDone(i.id));
   for (const item of moved) {
@@ -267,7 +273,7 @@ export function previewInstructions(groups: readonly PlanGroup[], zones: readonl
         return [`Leave ${things} where it is on the desk.`];
       default: {
         const zone = zones.find((z) => z.id === group.zoneId);
-        return zone ? [`Put ${things} inside the ${zone.label}.`] : [];
+        return zone ? [`Put ${things} inside the ${zone.label}${zone.box ? ` at pixel box [${zone.box.join(", ")}]` : ""}.`] : [];
       }
     }
   });
@@ -282,6 +288,8 @@ export function previewPrompt(groups: readonly PlanGroup[], zones: readonly Zone
     "Edit this photo to show the same room after it has been tidied.",
     ...previewInstructions(groups, zones),
     "Keep the same camera angle, the same furniture and the same lighting.",
+    "Preserve the exact room layout, walls, windows, doors, curtains, floor, rugs, bed, sofa and storage furniture in their original positions, colors and shapes.",
+    "Change only the listed loose items. Leave every unlisted object untouched. Do not redesign, replace or invent furniture or decor.",
     "Do not add any object that is not already in the photo.",
     "Do not add text, labels, numbers, arrows or captions.",
   ].join(" ");

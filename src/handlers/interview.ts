@@ -45,6 +45,7 @@ const RULES = `Rules:
 - Sticky notes and glasses go to zoneId "desk": they're wanted where they can be seen.
 - Cables and power banks go to the same zone as the charger.
 - Pens go to the pen cup zone if there is one.
+- Toys, stuffed animals and board games go to a toy box, storage bin, storage basket, box or shelf.
 - Everything else goes to a storage zone such as a bin, box, drawer or shelf.
 - reason is at most 10 words.`;
 
@@ -124,6 +125,6 @@ export const interview: PhaseHandler = async (session, msg) => {
 
   // Fire and forget. The plan is already delivered, and the router has to save the session now
   // rather than 25s from now, or the user's next photo would load a session still in "interview".
-  void sendPreview(session.beforePhoto, structuredClone(groups), zones, msg.send, msg.isCurrent);
+  void sendPreview(session.beforePhoto, structuredClone(groups), session.zones, msg.send, msg.isCurrent);
   return [];
 };

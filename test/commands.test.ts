@@ -189,3 +189,10 @@ describe("findLabel", () => {
     expect(findLabel("where does this go")).toBeUndefined();
   });
 });
+
+
+it.each([["doll", "toy"], ["toy horse", "toy"], ["earbuds", "headphones"], ["sneakers", "shoes"]])("accepts the detector synonym %s in label corrections", (said, label) => {
+  const s = planned();
+  handleCommand(s, `1 is a ${said}`);
+  expect(s.items.find((i) => i.id === 1)?.label).toBe(label);
+});

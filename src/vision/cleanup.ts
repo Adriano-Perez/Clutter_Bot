@@ -1,3 +1,4 @@
+import { CANONICAL_LABELS } from "./labels.js";
 import type { Box } from "./overlay.js";
 
 export interface LabeledBox {
@@ -47,6 +48,11 @@ export const SYNONYMS: Record<string, string> = {
   "t-shirt": "clothes",
   jacket: "clothes",
   towel: "blanket",
+  "toy horse": "toy",
+  "toy figurine": "toy",
+  doll: "toy",
+  "toy car": "toy",
+  "stuffed toy": "stuffed animal",
 };
 
 // Rule a: when two labels land on the same box, the winner's label is kept.
@@ -128,7 +134,11 @@ export function cleanDetections<T extends LabeledBox>(
   zones: readonly ZoneBox[],
   imageWidth: number,
 ): T[] {
-  const canonical = detections.map((d) => ({ ...d, label: SYNONYMS[d.label] ?? d.label }));
+  const allowed = new Set<string>(CANONICAL_LABELS);
+  const canonical = detections.map((d) => {
+    const label = d.label.trim().toLowerCase();
+    return { ...d, label: SYNONYMS[label] ?? label };
+  }).filter((d) => allowed.has(d.label));
 
   const maxGap = imageWidth * SAME_LABEL_GAP;
   const pieced = mergeWhile(canonical, (a, b) =>
