@@ -117,4 +117,21 @@ describe("detectPhoto", () => {
     expect(filtered.items.map((i) => i.label)).toEqual(["mug"]);
     expect(unfiltered.items.map((i) => i.label).sort()).toEqual(["mug", "paper"]);
   });
+
+  it("still drops a bin label now that it reads as a sticky note rather than paper", async () => {
+    // Real boxes from a live run: with "sticky note" in the vocabulary, the masking-tape "B"
+    // taped inside the right-hand bin comes back as a sticky note instead of paper. It's still
+    // not desk clutter, and the filter is geometric, so the new label changes nothing.
+    const zones: [string, Box][] = [["storage bin", [609, 0, 768, 142]]];
+    const items: [string, Box][] = [
+      ["sticky note", [652, 39, 707, 96]],
+      ["mug", [484, 80, 564, 177]],
+    ];
+
+    vi.stubGlobal("fetch", mockDetect(items, zones));
+    const result = await detectPhoto(photo, { dropInsideZones: true });
+
+    expect(result.items.map((i) => i.label)).toEqual(["mug"]);
+    expect(result.preStored.map((p) => p.label)).toEqual(["sticky note"]);
+  });
 });
