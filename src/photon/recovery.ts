@@ -28,7 +28,7 @@ export async function startRecovery(
   projectId: string,
   projectSecret: string,
   receive: (chat: string, guid: string) => Promise<void>,
-  since = new Date(),
+  since = new Date(Date.now() - 120_000),
 ): Promise<void> {
   const token = await cloud.issueImessageTokens(projectId, projectSecret);
   if (token.type !== "shared") return;
@@ -37,6 +37,7 @@ export async function startRecovery(
   const client = createGrpcClient({
     address: process.env.SPECTRUM_IMESSAGE_ADDRESS ?? "imessage.spectrum.photon.codes:443",
     timeout: 10_000,
+    retry: true,
     token: async () => {
       if (Date.now() >= refreshAt) {
         const fresh = await cloud.issueImessageTokens(projectId, projectSecret);

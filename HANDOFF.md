@@ -1,60 +1,33 @@
-# Where things stand
+# Demo handoff — October 18, 2026
 
-Written at the end of the overnight build. 13 PRs merged (#50–#62), 205 tests, `tsc --noEmit`
-clean, `main` green.
+The managed demo server is run with `npm run demo:server -- start` (not watch mode). `status`, `restart` and `stop` manage only that process; its log is `out/demo/server.log`. `npm start` remains available for a foreground server after stopping the managed instance. `npm run preflight` checks configuration, local health and the public tunnel. `npm run preflight -- --live` makes real Perceptron/Gemini fixture calls and checks Photon authentication without sending messages.
 
-## What works right now, with no further setup
+## Implemented in this readiness pass
 
-The whole loop: photo → numbered overlay → one question → grouped plan → second photo →
-green/red verdict. Plus `help`, `status`, `where does X go?`, `3 is a power bank`, `next`, `done`,
-`A is full`, `start over`, `ping`, a photo quality gate, and the `/s/:id` plan page.
+- Preserved and committed the room vocabulary and placement expansion. Added toy horses/figurines, dolls, toy cars, stuffed animals and board games after the room rehearsal exposed missing toys. The rerun detected four toy groups in the middle of the image (about 24 seconds total).
+- Verification checks the intended destination, preserves before-photo zone letters, records photo evidence and refuses empty or incomparable after photos. Missing storage items remain inconclusive; absence never proves disposal or delivery to the kitchen.
+- Full bins stay excluded, label corrections preserve unrelated progress, neighboring books and crockery stay separate, and omitted model placements use the rule planner.
+- Each sender has an ordered queue; different senders run independently. Corrupt input receives a retry response. Replies and photo/caption groups are unwrapped; receipts and reactions do not trigger bot prompts.
+- Photon shared-chat history is polled every five seconds to recover missed live events, with router deduplication shared across both paths.
+- Public photo links use 128-bit tokens, reject filesystem symlink escapes, and disable browser caching/referrer leakage. Old short tokens are rotated on database startup.
+- Late illustrations are suppressed when the session/plan changes. Image edits also pass a bounded Gemini comparison against the original; detected layout/furniture changes or an unavailable check suppress the optional illustration. This is model-based and can miss errors. Room illustrations remain enabled by request, with a disclaimer in both the image and message. The page shows user claims separately from photo evidence and lists every item in each group.
+- `npm run demo:snapshot -- <last4>` saves a private offline HTML copy of the current session under `out/demo/`.
 
-Run `npm run dev`, text a photo, and it works.
+## Live checks observed
 
-## What needs you
+Gemini structured output succeeded (about 1.8 seconds). Perceptron detected the messy tray (about 13 seconds) and half tray (about 11 seconds). Gemini image editing succeeded (about 15 seconds). The public HTTPS tunnel and local health returned HTTP 200.
 
-### 1. Gemini image quota
+Photon authenticated but initially missed the tester's delivered `start over` event. Photon history proved receipt; the recovery path restored incoming commands and photos. The tester then reached a 13-item plan and received an illustration through iMessage. A second room photo reached a six-item plan; the primary model timed out and the code fallback delivered it. An independent live same-photo verification reported unfinished items and stayed planned. A successful physical tidy-and-verify run is still not established by those checks.
 
-Working as of 06:44. The free tier has a daily cap, so it can run out again mid-day; when it does
-the preview is skipped silently, the plan is unaffected and nothing looks broken. Don't build the
-demo script around it being there.
+## Required operational context
 
-### 2. Voice — config only, no code left
+Photon reports **shared** routing, not a dedicated bot number. Each sender must be registered under the project's Users tab and text their own assigned recipient number. A registered team phone is the simplest judge demo. Confirm `ping` → `pong` before starting. The current tunnel URL is in `.env` and works only while the local Cloudflare tunnel process is running.
 
-The five server tools are built and tested (`POST /voice/*`). What's left is ElevenLabs agent
-setup, the tunnel and the SIP import, all written up in
-[`specs/features/05-voice-guidance/SETUP.md`](specs/features/05-voice-guidance/SETUP.md).
+Use a real same-view before/after scene. The three bundled tray photos change storage positions and some objects, so they are independent detection samples, not a trustworthy verification pair.
 
-`.env` already has the slots, with `ELEVENLABS_WEBHOOK_SECRET` and `TOOL_SHARED_SECRET` generated.
-You need to fill in `ELEVENLABS_API_KEY`, `ELEVENLABS_AGENT_ID` and `PHOTON_SMS_NUMBER`.
+Text `start over` between runs; avoid resetting every user's session while anyone is testing. Read `DEMO.md` for the run sheet and limits.
 
-The post-call webhook (#28) is **not** built. It needs a Photon send path not tied to an inbound
-message, which is a design decision rather than configuration — don't start it under time pressure.
+Voice is outside the verified demo. The configured ElevenLabs credential returned HTTP 401; no voice agent ID/calling number is configured, and the post-call summary webhook is not built.
 
-## Before you demo
 
-Read [`DEMO.md`](DEMO.md). It has the pre-flight checklist, a timed three-minute run, a
-what-to-do-when-it-breaks table, and answers to the questions judges ask.
-
-Two things to run between judges:
-
-```sh
-npm run reset
-```
-
-and keep `npm run dev` in view so you can see what's happening.
-
-## Two numbers worth knowing by heart
-
-- **Open-ended Perceptron detection took ~31 s** and returned sentence-long labels. A fixed 26-term
-  vocabulary with reasoning `"none"` does it in **9–16 s**. That's the engineering story.
-- **`gemini-3.8-flash` failed 1 call in 3** with `503 high demand` when measured. That's why there's
-  a model fallback and a plain-code fallback underneath it. That's the production-thinking story.
-
-## What I deliberately didn't do
-
-- **A three-question interview** (#16). One question is the better product and a much better demo.
-  The issue is still open rather than closed, because that's your call, not mine.
-- **Blur-gating the after photo.** An empty patch of desk measures *lower* than a blurred photo, so
-  the gate would reject a tidied desk — the exact result the demo builds towards. It runs on the
-  before photo only.
+Final local checks: all 257 regression tests passed across 24 files. TypeScript checks passed. CI now repeats both checks on Node 24 for pushes and pull requests. The real room re-detection found four middle toy groups. The improved image instructions still produced an imperfect illustration, so its visible disclaimer explicitly allows furniture/detail differences; it must not be treated as verification evidence.

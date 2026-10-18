@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit",
     "preflight": "tsx scripts/preflight.ts",
     "demo:snapshot": "tsx scripts/export-demo.ts",
+    "demo:server": "tsx scripts/demo-server.ts",
     "spike:perceptron": "tsx scripts/spike-perceptron.ts",
     "reset": "tsx scripts/reset-sessions.ts"
   },

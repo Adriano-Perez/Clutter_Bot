@@ -1,7 +1,7 @@
 # ClutterBot
 
 An iMessage bot that tells you where every item on your desk goes, then checks that you put it
-there. No app, no sign-up: you text a photo to a phone number. Built at DubHacks 2026.
+there. No app to install: you text a photo to a phone number. The current Photon shared-number demo requires registered testers. Built at DubHacks 2026.
 
 > A chatbot gives you advice about tidying. ClutterBot numbers the things on *your* desk, tells you
 > where each one goes, and then looks at a second photo to see whether you actually did it — and it
@@ -26,7 +26,7 @@ One loop, all of it over iMessage:
    Put it all away, then send me another photo and I'll check.
    ```
 5. **The check.** You tidy up, send a second photo, and get back a green/red overlay plus
-   `Put away: charger, cable. Tossed: 2 paper. Still out: mug (5).`
+   `Put away: charger, cable. No longer visible (planned to toss): 2 papers. Still out: mug (5).`
 
 ### Any time, in any phase
 
@@ -48,16 +48,16 @@ Once you have a plan, you can work through it a step at a time instead of all at
 | `done` | `Nice — 2 of 5 done.` and the next step |
 | `A is full` | moves everything still to do out of A, and carries on |
 
-Saying `done` records a **claim**, never a verification. Only the second photo can do that.
+Saying `done` records a **claim**, never a verification. Only visible evidence in the second photo can do that.
 
 Every plan also comes with a link to a page you can open on your phone: the numbered before photo,
 the plan, and the green/red after photo once there is one.
 
 ## What it won't pretend
 
-It recognises **20 kinds of desk item** and **only counts what's visible**. Every verdict ends with
+It recognises **29 kinds of desk and room item** and **only counts what's visible**. Every verdict ends with
 *"I can't see inside closed bins, so I'm only counting what's visible."* A thing it can't find is
-reported as *moved off the desk*, never as *put away*.
+reported as *not visible*, never as *put away*. Missing storage items keep the check inconclusive. Verification expects the same camera view and storage positions; an unrecognizable after photo asks for a retake.
 
 If a photo is too dark or too blurry to work with, it says so and asks for another instead of
 burning 15 seconds on a detection pass that was never going to land.
@@ -83,13 +83,22 @@ cp .env.example .env
 | `PUBLIC_BASE_URL` | public address of this server; blank means no plan link is sent |
 
 ```sh
-npm run dev        # Hono on :3000 plus the Photon listener
-npm test           # 205 tests, fully offline
+npm start          # foreground demo server: Hono on :3000 plus the Photon listener
+npm run dev        # development mode; restarts when source changes
+npm test -- --run   # offline regression suite
 npm run typecheck
 npm run reset      # clear sessions between demo runs
 ```
 
-Text a photo of your desk to the Photon line. `ping` checks it's listening.
+For a background server that survives closing the terminal, use `npm run demo:server -- start`; `status`, `restart` and `stop` manage that process. Its log is `out/demo/server.log`.
+
+Run `npm run preflight` to check the server and tunnel; `npm run preflight -- --live` also checks Photon authentication, Perceptron and Gemini without sending messages. A successful health check establishes server connectivity, not a phone round trip.
+
+Photon currently reports **shared-number routing**. In the Photon dashboard, register each tester under the project’s Users tab and give them their own assigned recipient number. Their iMessage sending identity must match the registered phone number. Text `ping` and verify `pong` before starting the demo. A judge can use an already registered team phone.
+
+`PUBLIC_BASE_URL` requires a running HTTPS tunnel to this server. The current tunnel is a temporary local setup; its URL belongs in `.env`, never in committed source. Keep the tunnel and server running while demonstrating the linked plan page.
+
+You can save a private, self-contained offline copy of a real session with `npm run demo:snapshot -- <last-four-digits>`. It writes `out/demo/snapshot.html`, including embedded photos and the actual verdict; it is labelled as a recorded snapshot.
 
 ## Architecture
 
@@ -112,22 +121,22 @@ Hono ───────┴──▶ GET /s/:id  plan page ──────�
 
 - `src/photon/` — Spectrum client, photo download, HEIC → JPEG, PII-masked logging.
 - `src/router.ts` — drops duplicate events, loads the session for the sender, runs global commands,
-  then dispatches on phase (`awaiting_photo` → `interview` → `planned` → `complete`).
+  then dispatches on phase (`awaiting_photo` → `interview` → `planned` → `complete`). Independent senders run concurrently; each sender’s messages stay ordered.
 - `src/commands.ts` — the commands above. Pure functions over a session.
 - `src/vision/` — normalization (≤ 1024 px), the quality gate, Perceptron calls, cleanup rules,
   zone filtering, and the numbered SVG overlay drawn with sharp.
 - `src/plan.ts` — destinations, the rule-based planner, and the grouped plan text.
 - `src/llm/` — `json()` for schema-constrained text, `editImage()` for the preview.
-- `src/web/` — the `/s/:id` plan page. Server-rendered, no scripts, photos served by session rather
-  than by filesystem path.
+- `src/web/` — the `/s/:id` plan page. Server-rendered, no scripts, photos served through unguessable 128-bit session links rather
+  than by filesystem path. The links are bearer access: anyone given a link can view its photos.
 - `src/store/sessionStore.ts` — one JSON document per session, plus a seen-events table for dedupe.
 
 ## How we use Perceptron
 
 Perceptron Mk1.5 is ClutterBot's eyes. Without it there are no numbers and no green/red check.
 
-Each photo goes to `/v1/detect` twice in parallel: once with our 26-term item vocabulary, once with
-6 storage categories. We get pixel boxes back, then our own cleanup runs over them — merging
+Each photo goes to `/v1/detect` twice in parallel: once with our 38-term item vocabulary, once with
+14 storage categories. We get pixel boxes back, then our own cleanup runs over them — merging
 duplicates, folding synonyms into one canonical label, joining the two boxes of a pair of
 headphones, and dropping the "cup" zone that is really a mug.
 
@@ -141,10 +150,9 @@ Measurements in [`specs/features/02-item-detection/validation.md`](specs/feature
 
 ## How we use Photon
 
-Photon Spectrum is the entire user interface. That's the pitch: no app, no sign-up, it works for
-any phone number, and a judge can text it from their own phone.
+Photon Spectrum is the primary user interface. There is no app to install. The current shared-number setup requires registered testers; a judge can use a registered team phone or be enrolled before testing.
 
-We read from Spectrum's async message stream, download photo attachments (converting iPhone HEIC to
+We read from Spectrum's async message stream, recover missed shared-chat events with a five-second history poll, download photo attachments (converting iPhone HEIC to
 JPEG), and reply with text and annotated images. Every inbound event ID is recorded in SQLite
 before the handler runs, so a redelivered message can never produce a second reply. Photos are
 acknowledged immediately, because the work behind them takes 15 seconds.
@@ -160,7 +168,7 @@ a single time budget, and if every one fails the same rules run in plain code. T
 stall on this.
 
 The preview illustration is a second Gemini call — an image edit of your own photo showing roughly
-how the desk could look, always captioned *"Illustration, not a photo"*. Measured at 17-24 s on a
+how the desk could look, always labelled *"Approximate illustration, not a photo"* in the message and on the image itself. Measured at 17-24 s on a
 real desk photo. It's best-effort: it runs after the plan is already delivered, and any failure is
 logged and dropped rather than shown.
 
@@ -196,7 +204,7 @@ Each of those has a test that tries to smuggle an instruction through and assert
 
 ## Limits
 
-- 20 kinds of desk item. Anything else is invisible to it; correct it with `3 is a mug`.
+- 29 kinds of desk and room item. Anything else is invisible to it; correct it with `3 is a mug`.
 - It only counts what the camera can see. Closed bins and drawers are opaque to it, and it says so.
 - Detection is not deterministic — the same photo can return a slightly different set of items
   between runs.
@@ -205,7 +213,7 @@ Each of those has a test that tries to smuggle an instruction through and assert
 
 ## What's next
 
-Voice guidance: a phone call that walks you through the plan one step at a time and reports the
+Voice guidance is not part of the verified demo: a phone call that walks you through the plan one step at a time and reports the
 outcome back into the iMessage thread. Specced in
 [`specs/features/05-voice-guidance/`](specs/features/05-voice-guidance/).
 
