@@ -89,3 +89,45 @@ export function planMessage(groups: readonly PlanGroup[]): string {
   if (groups.length === 0) return "I couldn't work out a plan for this one. Try 'start over' and send a fresh photo.";
   return ["Here's where everything goes:", "", ...groups.map(groupLine)].join("\n");
 }
+
+/** Always sent with the preview, so nobody mistakes it for a photo of their actual desk. */
+export const PREVIEW_CAPTION = "Illustration, not a photo — roughly how your desk could look.";
+
+// "the charger, cable and pen"
+function listLabels(items: readonly Item[]): string {
+  const labels = [...new Set(items.map((i) => i.label))];
+  const last = labels.at(-1)!;
+  return labels.length === 1 ? `the ${last}` : `the ${labels.slice(0, -1).join(", ")} and ${last}`;
+}
+
+/** One plain sentence per destination, for the image model. */
+export function previewInstructions(groups: readonly PlanGroup[], zones: readonly ZoneRef[]): string[] {
+  return groups.flatMap((group) => {
+    const things = listLabels(group.items);
+    switch (group.zoneId) {
+      case TOSS.id:
+      case OFF_DESK.id:
+        return [`Remove ${things} from the desk completely.`];
+      case DESK.id:
+        return [`Leave ${things} where it is on the desk.`];
+      default: {
+        const zone = zones.find((z) => z.id === group.zoneId);
+        return zone ? [`Put ${things} inside the ${zone.label}.`] : [];
+      }
+    }
+  });
+}
+
+/**
+ * The image-edit prompt. Built only from our own label vocabulary and the detected zone labels —
+ * no user text reaches the image model, so there's no injection path into it.
+ */
+export function previewPrompt(groups: readonly PlanGroup[], zones: readonly ZoneRef[]): string {
+  return [
+    "Edit this photo of a desk to show the same desk after it has been tidied.",
+    ...previewInstructions(groups, zones),
+    "Keep the same camera angle, the same desk and the same lighting.",
+    "Do not add any object that is not already in the photo.",
+    "Do not add text, labels, numbers, arrows or captions.",
+  ].join(" ");
+}
