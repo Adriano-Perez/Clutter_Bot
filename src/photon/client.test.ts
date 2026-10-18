@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
-import { mask, maskedDump } from "./client.js";
+import { maskedDump } from "./client.js";
+import { mask } from "./media.js";
 
 test("mask keeps only last 4 digits", () => {
   expect(mask("+1 (206) 555-0142")).toBe("***0142");
