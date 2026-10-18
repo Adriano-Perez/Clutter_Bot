@@ -91,7 +91,7 @@ describe("awaitingPhoto", () => {
       { type: "text", text: "Which of these do you use every day? Reply with numbers, e.g. 2 5" },
     ]);
     expect(await readFile(overlayPath)).toEqual(result.overlayPng);
-    expect(detectPhoto).toHaveBeenCalledWith(JPEG_BYTES);
+    expect(detectPhoto).toHaveBeenCalledWith(JPEG_BYTES, { dropInsideZones: true });
 
     expect(session.phase).toBe("interview");
     expect(session.items).toBe(result.items);

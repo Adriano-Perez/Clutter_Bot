@@ -101,4 +101,20 @@ describe("detectPhoto", () => {
     expect(result.items).toEqual([]);
     expect(result.legend).toBe(NO_ITEMS_LEGEND);
   });
+
+  it("drops items inside a zone box only with dropInsideZones", async () => {
+    const zones: [string, Box][] = [["storage bin", [0, 287, 154, 429]]];
+    const items: [string, Box][] = [
+      ["paper", [20, 300, 100, 400]], // label taped inside the bin
+      ["mug", [484, 80, 564, 177]],
+    ];
+
+    vi.stubGlobal("fetch", mockDetect(items, zones));
+    const filtered = await detectPhoto(photo, { dropInsideZones: true });
+    vi.stubGlobal("fetch", mockDetect(items, zones));
+    const unfiltered = await detectPhoto(photo);
+
+    expect(filtered.items.map((i) => i.label)).toEqual(["mug"]);
+    expect(unfiltered.items.map((i) => i.label).sort()).toEqual(["mug", "paper"]);
+  });
 });
