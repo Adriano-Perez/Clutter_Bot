@@ -1,16 +1,12 @@
 import { z } from "zod";
+import { DESK, OFF_DESK, TOSS, type ZoneRef } from "../plan.js";
 import type { PhaseHandler } from "../router.js";
-import type { Item, Zone } from "../types.js";
+import type { Item } from "../types.js";
 import { json } from "../llm/gemini.js";
 import { LABEL_VOCAB } from "../vision/labels.js";
 
 type Placement = { itemId: number; zoneId: string; reason: string };
-type ZoneRef = Pick<Zone, "id" | "label">;
 
-// Pseudo-zones every plan can use alongside the detected ones.
-const DESK: ZoneRef = { id: "desk", label: "desk" };
-const TOSS: ZoneRef = { id: "toss", label: "toss" };
-const OFF_DESK: ZoneRef = { id: "off-desk", label: "off the desk" };
 const MAX_LINES = 12;
 const MAX_REPLY_CHARS = 200;
 
@@ -117,6 +113,9 @@ export const interview: PhaseHandler = async (session, msg) => {
 
   const daily = new Set(parseDaily(msg.content.text, session.items));
   for (const item of session.items) if (daily.has(item.id)) item.usage = "daily";
+
+  // NFR-GW-01: the Gemini plan can take 25s. Say something first, or the demo looks hung.
+  await msg.send({ type: "text", text: "Working out where everything goes…" });
 
   const zones = session.zones.map(({ id, label }) => ({ id, label }));
   const placements = await plan(session.items, zones, msg.content.text);
