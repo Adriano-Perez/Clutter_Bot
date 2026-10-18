@@ -1,6 +1,6 @@
 import type { Reply } from "./router.js";
 import type { Item, Session } from "./types.js";
-import { zoneName } from "./plan.js";
+import { NEXT_STEP, fallbackPlan, groupPlan, planMessage, zoneName } from "./plan.js";
 import { resetSession } from "./session.js";
 import { CANONICAL_LABELS } from "./vision/labels.js";
 
@@ -56,6 +56,7 @@ const GENERAL_RULE: Record<string, string> = {
   clothes: "Clothes go off the desk entirely — they don't fit a desk bin.",
   "sticky note": "Sticky notes stay on the desk — they're there to be read.",
   glasses: "Glasses stay on the desk, where you'll find them.",
+  "power bank": "A power bank goes in a bin with the charger, unless you use it every day.",
 };
 
 function generalRule(label: string): string {
@@ -101,6 +102,72 @@ export function whereDoesText(session: Session, raw: string): string {
   return 'Tell me which one — a number from the photo, like "where does 3 go?", or a thing, like "where does the pen go?".';
 }
 
+// "3 is a power bank", "number 3 is actually my calculator", "3 = mug".
+// Two digits at most, so a phone number can't look like a correction.
+const CORRECTION_RE =
+  /^(?:number\s+|item\s+|#\s*)?(\d{1,2})\s*(?:is|=|means)\s*(?:actually\s+)?(?:a|an|the|my)?\s*([a-z][a-z' -]{0,24})$/i;
+
+export interface Correction {
+  id: number;
+  /** A canonical label; free text that doesn't name a known item never becomes one. */
+  label: string;
+}
+
+/**
+ * FR-DET-06: "3 is a power bank".
+ *
+ * Returns the item number and the raw thing the user called it. The label is matched against the
+ * known vocabulary by the caller rather than taken at face value: an item label ends up in the
+ * plan prompt, so accepting free text here would reopen the hole #48 closed.
+ */
+export function parseCorrection(raw: string): { id: number; said: string } | undefined {
+  const match = CORRECTION_RE.exec(raw.trim().replace(/[.!?]+$/, ""));
+  if (!match) return undefined;
+  return { id: Number(match[1]), said: match[2]!.trim() };
+}
+
+function correctionReply(session: Session, { id, said }: { id: number; said: string }): Reply[] {
+  const item = session.items.find((i) => i.id === id);
+  if (!item) {
+    const known = session.items.length > 0 ? ` I've got 1–${session.items.length}.` : "";
+    return text(`There's no ${id} in this photo.${known}`);
+  }
+
+  const label = findLabel(said);
+  if (!label) {
+    return text(
+      `I don't know "${said}". I can call it: ${CANONICAL_LABELS.join(", ")}.\n` +
+        `Or say "${id} is trash" to throw it out.`,
+    );
+  }
+  if (label === item.label) return text(`${id} is already a ${label}.`);
+
+  const was = item.label;
+  item.label = label;
+
+  // Before the plan exists there's nothing to re-place; the interview will cover it.
+  if (session.phase !== "planned") return text(`Got it — ${id} is a ${label}, not a ${was}.`);
+
+  // Re-run the rules over the whole plan so context still applies (a cable follows its charger),
+  // but only move the item that changed. Everything else keeps the placement it was given.
+  const zones = session.zones.map(({ id: zoneId, label: zoneLabel }) => ({ id: zoneId, label: zoneLabel }));
+  const replacement = fallbackPlan(session.items, zones).find((p) => p.itemId === id);
+  if (replacement) {
+    item.destinationZoneId = replacement.zoneId;
+    item.reason = replacement.reason;
+  }
+
+  return text(
+    [
+      `Got it — ${id} is a ${label}, not a ${was}. Updated plan:`,
+      "",
+      planMessage(groupPlan(session.items, zones)),
+      "",
+      NEXT_STEP,
+    ].join("\n"),
+  );
+}
+
 /**
  * Commands that work in any phase, checked before the phase handler (FR-GW-07).
  * Returns undefined when the text isn't a command, so the phase handler sees it instead.
@@ -118,5 +185,10 @@ export function handleCommand(session: Session, raw: string): Reply[] | undefine
   }
   // "where does the pen go?", "where do my keys go", "where does 3 go"
   if (/\bwhere\b/i.test(t)) return text(whereDoesText(session, raw));
+
+  // "3 is a power bank" — only once there are numbered items to correct.
+  const correction = session.items.length > 0 ? parseCorrection(raw) : undefined;
+  if (correction) return correctionReply(session, correction);
+
   return undefined;
 }

@@ -1,6 +1,7 @@
 import type { Item, Zone } from "./types.js";
 
 export type ZoneRef = Pick<Zone, "id" | "label">;
+export type Placement = { itemId: number; zoneId: string; reason: string };
 
 // Pseudo-zones every plan can use alongside the zones detected in the photo.
 export const DESK: ZoneRef = { id: "desk", label: "desk" };
@@ -25,6 +26,44 @@ export function zoneName(zones: readonly ZoneRef[], id: string): string {
 
 /** What to do once the plan has been sent. Shared, so the plan and a nudge never disagree. */
 export const NEXT_STEP = "Put it all away, then send me another photo and I'll check.";
+
+/**
+ * The placement rules in plain code. Used when Gemini is unavailable, and to re-place a single
+ * item after the user corrects its label, where spending another model call isn't worth it.
+ */
+export function fallbackPlan(items: Item[], zones: ZoneRef[]): Placement[] {
+  const penCup = zones.find((z) => z.label === "pen cup");
+  const bin = zones.find((z) => z.label === "storage bin") ?? zones[0] ?? DESK;
+  const place = (i: Item): Placement => {
+    if (i.usage === "daily") return { itemId: i.id, zoneId: DESK.id, reason: "you use it every day" };
+    // shortcut: receipts count as paper, add labels here if the vocab grows
+    if (i.label === "paper" || i.label === "receipt") return { itemId: i.id, zoneId: TOSS.id, reason: "loose paper is clutter" };
+    if (i.label === "trash") return { itemId: i.id, zoneId: TOSS.id, reason: "it's trash" };
+    if (i.label === "backpack" || i.label === "clothes")
+      return { itemId: i.id, zoneId: OFF_DESK.id, reason: "too big for the desk bins" };
+    // Filing someone's notes or their glasses away is unhelpful, however tidy it looks.
+    if (i.label === "sticky note") return { itemId: i.id, zoneId: DESK.id, reason: "it's there to be read" };
+    if (i.label === "glasses") return { itemId: i.id, zoneId: DESK.id, reason: "so you can find them" };
+    if (i.label === "pen" && penCup) return { itemId: i.id, zoneId: penCup.id, reason: "keeps pens together" };
+    return { itemId: i.id, zoneId: bin.id, reason: "stored out of the way" };
+  };
+  const charger = items.find((i) => i.label === "charger");
+  const chargerZone = charger && place(charger).zoneId;
+  return items.map((i) =>
+    i.label === "cable" && chargerZone && i.usage !== "daily"
+      ? { itemId: i.id, zoneId: chargerZone, reason: "stays with the charger" }
+      : place(i),
+  );
+}
+
+/** Drop placements for unknown items/zones or duplicates; any item left unplaced goes to the desk. */
+export function completePlan(placements: Placement[], items: Item[], zones: ZoneRef[]): Placement[] {
+  const zoneIds = new Set([...zones.map((z) => z.id), DESK.id, TOSS.id, OFF_DESK.id]);
+  const byItem = new Map<number, Placement>();
+  for (const p of placements)
+    if (zoneIds.has(p.zoneId) && !byItem.has(p.itemId)) byItem.set(p.itemId, p);
+  return items.map((i) => byItem.get(i.id) ?? { itemId: i.id, zoneId: DESK.id, reason: "keep it handy on the desk" });
+}
 
 const MAX_ITEMS_PER_GROUP = 6;
 

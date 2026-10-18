@@ -6,6 +6,7 @@
 export const LABEL_VOCAB = [
   "charger",
   "power adapter",
+  "power bank",
   "cable",
   "phone",
   "notebook",
@@ -39,6 +40,7 @@ export type Label = (typeof LABEL_VOCAB)[number];
 // item in "where does the charger go?". A test in cleanup.test.ts keeps this in step with SYNONYMS.
 export const CANONICAL_LABELS = [
   "charger",
+  "power bank",
   "cable",
   "phone",
   "notebook",
