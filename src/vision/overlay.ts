@@ -4,6 +4,7 @@ export type Box = [number, number, number, number]; // x1, y1, x2, y2 in normali
 
 export interface BoxedItem {
   box: Box;
+  color?: string; // box and badge color; yellow when omitted
 }
 
 export interface OverlayZone {
@@ -73,16 +74,17 @@ export async function renderDetections(
     );
   });
 
-  const rects = items.map(({ box: [x1, y1, x2, y2] }) => {
-    return `<rect x="${x1}" y="${y1}" width="${x2 - x1}" height="${y2 - y1}" fill="none" stroke="${BOX_COLOR}" stroke-width="${BOX_STROKE}"/>`;
+  const rects = items.map(({ box: [x1, y1, x2, y2], color = BOX_COLOR }) => {
+    return `<rect x="${x1}" y="${y1}" width="${x2 - x1}" height="${y2 - y1}" fill="none" stroke="${escapeXml(color)}" stroke-width="${BOX_STROKE}"/>`;
   });
 
-  const badges = items.map(({ id, box: [x1, y1] }) => {
+  const badges = items.map(({ id, box: [x1, y1], color = BOX_COLOR }) => {
+    const textColor = color === BOX_COLOR ? "#000" : "#fff";
     const cx = clamp(x1, BADGE_RADIUS, width - BADGE_RADIUS);
     const cy = clamp(y1, BADGE_RADIUS, height - BADGE_RADIUS);
     return (
-      `<circle cx="${cx}" cy="${cy}" r="${BADGE_RADIUS}" fill="${BOX_COLOR}" stroke="#000" stroke-width="2"/>` +
-      `<text x="${cx}" y="${cy}" font-family="Helvetica, Arial, sans-serif" font-size="${BADGE_FONT_SIZE}" font-weight="bold" fill="#000" text-anchor="middle" dominant-baseline="central">${escapeXml(String(id))}</text>`
+      `<circle cx="${cx}" cy="${cy}" r="${BADGE_RADIUS}" fill="${escapeXml(color)}" stroke="#000" stroke-width="2"/>` +
+      `<text x="${cx}" y="${cy}" font-family="Helvetica, Arial, sans-serif" font-size="${BADGE_FONT_SIZE}" font-weight="bold" fill="${textColor}" text-anchor="middle" dominant-baseline="central">${escapeXml(String(id))}</text>`
     );
   });
 

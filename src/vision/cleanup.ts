@@ -66,6 +66,14 @@ function area([x1, y1, x2, y2]: Box): number {
   return Math.max(0, x2 - x1) * Math.max(0, y2 - y1);
 }
 
+// Share of the item's own area that lies inside the zone box: 1 when fully inside.
+export function fractionInside(item: Box, zone: Box): number {
+  const ix = Math.max(0, Math.min(item[2], zone[2]) - Math.max(item[0], zone[0]));
+  const iy = Math.max(0, Math.min(item[3], zone[3]) - Math.max(item[1], zone[1]));
+  const itemArea = area(item);
+  return itemArea > 0 ? (ix * iy) / itemArea : 0;
+}
+
 // Intersection over the smaller box: 1 when one box sits fully inside the other.
 function overlapOfSmaller(a: Box, b: Box): number {
   const ix = Math.max(0, Math.min(a[2], b[2]) - Math.max(a[0], b[0]));
