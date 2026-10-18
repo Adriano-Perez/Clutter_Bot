@@ -101,3 +101,45 @@ Pinned by a test in `test/detectPhoto.test.ts` using the real boxes from that ru
 
 Detection is not deterministic between runs: a second run of the same fixture returned 12 items
 and did not see the tape labels at all. Both outcomes are handled.
+
+## Photo quality gate, calibrated Sun 18 Oct 2026
+
+FR-DET-07. Measured on the three fixtures and on degraded copies of each, at the same 1024 px
+normalization the detector sees.
+
+### Picking a sharpness measure
+
+First attempt used sharp's `convolve()` with a Laplacian kernel and took the standard deviation.
+It does not separate blur, because `convolve()` clamps to uint8 and throws away most of the signal:
+
+| | good | blur 3 | blur 6 | blur 12 |
+| --- | --- | --- | --- | --- |
+| `tray-messy` | 44.9 | 41.8 | 39.2 | 36.0 |
+
+A heavily blurred photo still scored 80% of a crisp one, and a *good* `tray-done` (27.8) scored
+lower than a blurred `tray-messy` (36.0), so no global threshold could work.
+
+Computing the Laplacian variance on raw pixels in floating point separates them by about 50x:
+
+| Photo | good | blur 2 | blur 4 | blur 8 | dark 0.25 |
+| --- | --- | --- | --- | --- | --- |
+| `tray-messy` | 786.2 | 13.6 | 4.4 | 2.9 | 39.1 |
+| `tray-half` | 371.1 | 9.4 | 3.7 | 2.6 | 19.2 |
+| `tray-done` | 144.3 | 3.9 | 1.7 | 1.2 | 8.0 |
+
+### Thresholds
+
+- **Brightness ≥ 0.12.** Good photos measured 0.65–0.78; a 1/8-exposure copy measured 0.076.
+- **Sharpness ≥ 25.** Worst good photo 144.3, mildest caught blur 13.6.
+
+Both sit several times away from the nearest real measurement in each direction. A wrongly
+rejected photo costs a demo; a marginal photo that gets through only costs one detection pass.
+
+Darkness is checked first: an underexposed photo also reads as blurry (`dark 0.25` → 8.0–39.1),
+and "add light" is the more useful instruction.
+
+### Before photo only
+
+A crop of empty desk surface measures **1.0**, below even heavy blur. A tidied desk is
+legitimately low in detail, so running this test on an "after" photo would reject exactly the
+result the user is hoping for. The gate is applied in `awaitingPhoto` and nowhere else.

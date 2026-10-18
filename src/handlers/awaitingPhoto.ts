@@ -3,6 +3,7 @@ import path from "node:path";
 import type { PhaseHandler } from "../router.js";
 import { mask, savePhoto } from "../photon/media.js";
 import { detectPhoto } from "../pipeline/detectPhoto.js";
+import { RETAKE, assessQuality } from "../vision/quality.js";
 
 const USAGE_QUESTION = "Which of these do you use every day? Reply with numbers, e.g. 2 5";
 const DETECTION_FAILED = "Sorry, I couldn't read that photo. Try sending it again.";
@@ -16,10 +17,20 @@ export const awaitingPhoto: PhaseHandler = async (session, msg) => {
   console.log(`handler: saved ${path.relative(process.cwd(), file)}`);
   session.beforePhoto = file;
 
-  // Detect on the saved file: HEIC uploads have already been converted to JPEG there.
+  // Work from the saved file: HEIC uploads have already been converted to JPEG there.
+  const bytes = await readFile(file);
+
+  // FR-DET-07: ask for a retake before spending 15s of Perceptron on a photo that can't work.
+  const quality = await assessQuality(bytes);
+  console.log(
+    `handler: quality brightness=${quality.brightness.toFixed(3)} sharpness=${quality.sharpness.toFixed(1)}` +
+      (quality.problem ? ` → ${quality.problem}, asking for a retake` : ""),
+  );
+  if (quality.problem) return [{ type: "text", text: RETAKE[quality.problem] }];
+
   let result;
   try {
-    result = await detectPhoto(await readFile(file), { dropInsideZones: true });
+    result = await detectPhoto(bytes, { dropInsideZones: true });
   } catch (err) {
     console.log(`handler: detection failed for ${mask(msg.sender)}: ${(err as Error).message}`);
     return [{ type: "text", text: DETECTION_FAILED }];
