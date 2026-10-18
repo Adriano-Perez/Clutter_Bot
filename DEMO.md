@@ -49,6 +49,9 @@ happen rather than hide.**
 **1:35 — tidy up (30s).**
 Put things away while talking. Text the second photo.
 
+> If a judge looks like they want more, text `next` — it walks you through one step at a time, and
+> `done` moves on. `A is full` re-plans everything still to do out of that bin. All over iMessage.
+
 **2:05 — the check (40s).**
 Green boxes for what's away, red for what's still out, plus:
 
@@ -58,6 +61,13 @@ I can't see inside closed bins, so I'm only counting what's visible.
 ```
 
 Say the last line out loud. *"Most demos overclaim. This one tells you what it can't see."*
+
+Two details worth pointing at while they look at the overlay:
+
+- **Round badge = away, square badge = still out.** Red and green are the pair people confuse most,
+  so the verdict is readable with the colour removed entirely.
+- **Tap the link** in the plan message to see the whole run on a page — before photo, plan, after
+  photo.
 
 **2:45 — what's next (15s).**
 Voice guidance: a call that walks you through it hands-free.
@@ -91,6 +101,10 @@ the configured model failing one call in three, which is why that exists.
 **"Is my photo safe?"**
 Phone numbers are masked in logs. The user's text is reduced to an allow-list before any model sees
 it — that was a real VEYZL finding, fixed in #48.
+
+**"What if it's wrong about where something goes?"**
+Correct the label (`3 is a power bank`) and it re-plans that item. If a bin fills up, `A is full`
+moves the rest elsewhere. Neither costs a model call, so both reply instantly.
 
 ## Track notes
 
