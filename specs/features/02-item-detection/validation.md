@@ -143,3 +143,15 @@ and "add light" is the more useful instruction.
 A crop of empty desk surface measures **1.0**, below even heavy blur. A tidied desk is
 legitimately low in detail, so running this test on an "after" photo would reject exactly the
 result the user is hoping for. The gate is applied in `awaitingPhoto` and nowhere else.
+
+## End-to-end status, Sun 18 Oct 2026
+
+The full conversation is covered offline in `test/endToEnd.test.ts`: a real MessageRouter over a
+real SQLite store through all four phases, with only Perceptron, Gemini and Photon stubbed. It
+asserts the exact strings a user reads, including the final "Desk clear! Nice work."
+
+**TC-DET-07 (bad photo asks for a retake): Pass** — dark and blurry photos are refused before any
+detection call, verified in `test/quality.test.ts` and end to end.
+
+Still needs a live run over iMessage on the real tray (issue #25); that needs the venue and a
+phone, not code.
