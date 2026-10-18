@@ -94,6 +94,7 @@ export async function detectPhoto(
     zonesCall,
   ]);
 
+  if (itemsResult.finishReason !== "complete") throw new Error("Detection was incomplete; please retake a closer photo.");
   const rawItems = toBoxes(itemsResult);
   const boxZones = withoutMugZones(zonesOutcome.zones ?? [], rawItems);
   const cleaned = cleanDetections(rawItems, boxZones, photo.width);

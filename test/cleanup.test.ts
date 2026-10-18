@@ -259,3 +259,14 @@ describe("cleanDetections", () => {
     expect(out.some((d) => d.label === "pen" && d.box === PEN_IN_CUP)).toBe(false);
   });
 });
+
+
+it.each(["book", "pillow", "plate", "bowl", "charger", "mug"])("keeps two nearby %s objects separate", (label) => {
+  const objects = [{ label, box: [0, 0, 100, 100] as Box }, { label, box: [110, 0, 210, 100] as Box }];
+  expect(cleanDetections(objects, [], 768)).toEqual(objects);
+});
+
+it("keeps a small real pen placed inside a pen cup for after-photo verification", () => {
+  const pen = { label: "pen", box: [50, 50, 55, 100] as Box };
+  expect(cleanDetections([pen], [PEN_CUP_ZONE], 768)).toEqual([pen]);
+});

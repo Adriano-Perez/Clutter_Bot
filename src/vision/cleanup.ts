@@ -17,27 +17,7 @@ const SAME_LABEL_GAP = 0.05; // of image width
 
 // Labels that are one physical object on a desk, so nearby same-label boxes are pieces of it
 // (two earbuds, a key ring split in two). Pens, paper and cables are genuinely multiple.
-const SINGLE_OBJECT_LABELS = new Set([
-  "headphones",
-  "keys",
-  "charger",
-  "mug",
-  "notebook",
-  "laptop",
-  "wallet",
-  "water bottle",
-  "backpack",
-  "calculator",
-  "power bank",
-  "book",
-  "pillow",
-  "blanket",
-  "plate",
-  "bowl",
-  "shoes",
-  // A pair of glasses often comes back as two boxes, one per lens.
-  "glasses",
-]);
+const SINGLE_OBJECT_LABELS = new Set(["headphones", "keys", "glasses"]);
 
 // Paired-label merge: the first label absorbs the second when they overlap enough.
 // Charger + cable is deliberately absent: a charger often overlaps its own separate USB cable.
@@ -174,5 +154,6 @@ export function cleanDetections<T extends LabeledBox>(
   // Items near a bin are kept; only items sitting inside a cup zone are the cup itself.
   // A mug is always an item, even inside a "cup" zone.
   const cupBoxes = zones.filter((z) => CONTAINER_ZONES.has(z.label)).map((z) => z.box);
-  return paired.filter((d) => d.label === "mug" || !cupBoxes.some((zb) => overlapOfSmaller(d.box, zb) >= CUP_OVERLAP));
+  return paired.filter((d) => d.label === "mug" || !cupBoxes.some((zb) =>
+    area(d.box) >= area(zb) * 0.6 && overlapOfSmaller(d.box, zb) >= CUP_OVERLAP));
 }

@@ -60,6 +60,7 @@ export function withoutMugZones(zones: readonly Zone[], items: readonly { label:
 // FR-DET-03: storage zones as pixel boxes from /v1/detect.
 export async function detectZones(photo: NormalizedPhoto): Promise<Zone[]> {
   const result = await detect(photo.dataUrl, { categories: [...ZONE_CATEGORIES], reasoningEffort: "none" });
+  if (result.finishReason !== "complete") throw new Error("Storage detection was incomplete");
   const raw = result.detections.flatMap(({ mention, point_box: pb }) =>
     pb ? [{ label: mention, box: [pb.top_left.x, pb.top_left.y, pb.bottom_right.x, pb.bottom_right.y] as Box }] : [],
   );

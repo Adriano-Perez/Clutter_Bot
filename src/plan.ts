@@ -1,6 +1,6 @@
 import type { Item, Step, Zone } from "./types.js";
 
-export type ZoneRef = Pick<Zone, "id" | "label">;
+export type ZoneRef = Pick<Zone, "id" | "label"> & Pick<Partial<Zone>, "full">;
 export type Placement = { itemId: number; zoneId: string; reason: string };
 
 // Pseudo-zones every plan can use alongside the zones detected in the photo.
@@ -35,6 +35,7 @@ export const NEXT_STEP = "Put it all away, then send me another photo and I'll c
  * item after the user corrects its label, where spending another model call isn't worth it.
  */
 export function fallbackPlan(items: Item[], zones: ZoneRef[]): Placement[] {
+  zones = zones.filter((z) => !z.full);
   /** The first zone actually found in the photo whose label is one of these, in order. */
   const prefer = (...labels: string[]): ZoneRef | undefined => {
     for (const label of labels) {
@@ -201,7 +202,7 @@ export function replanAwayFrom(
   blockedZoneId: string,
   isDone: (itemId: number) => boolean,
 ): { moved: Item[]; to: ZoneRef } {
-  const alternatives = zones.filter((z) => z.id !== blockedZoneId);
+  const alternatives = zones.filter((z) => z.id !== blockedZoneId && !z.full);
   const to = alternatives.find((z) => z.label === "storage bin") ?? alternatives[0] ?? DESK;
 
   const moved = items.filter((i) => i.destinationZoneId === blockedZoneId && !isDone(i.id));
@@ -237,6 +238,7 @@ export function previewInstructions(groups: readonly PlanGroup[], zones: readonl
     const things = listLabels(group.items);
     switch (group.zoneId) {
       case TOSS.id:
+      case KITCHEN.id:
       case OFF_DESK.id:
         return [`Remove ${things} from the desk completely.`];
       case DESK.id:

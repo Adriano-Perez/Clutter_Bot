@@ -175,7 +175,7 @@ export function zoneFullText(session: Session, letter: string): string {
 
   const all = steps(session);
   const doneItems = new Set(all.filter((s) => s.done).map((s) => s.itemId));
-  const zones = session.zones.map(({ id, label }) => ({ id, label }));
+  const zones = session.zones;
   const { moved, to } = replanAwayFrom(session.items, zones, zoneId, (id) => doneItems.has(id));
 
   zone.full = true;
@@ -242,14 +242,17 @@ function correctionReply(session: Session, { id, said }: { id: number; said: str
 
   // Re-run the rules over the whole plan so context still applies (a cable follows its charger),
   // but only move the item that changed. Everything else keeps the placement it was given.
-  const zones = session.zones.map(({ id: zoneId, label: zoneLabel }) => ({ id: zoneId, label: zoneLabel }));
+  const zones = session.zones;
   const replacement = fallbackPlan(session.items, zones).find((p) => p.itemId === id);
   if (replacement) {
     item.destinationZoneId = replacement.zoneId;
     item.reason = replacement.reason;
   }
-  // The steps describe the old plan, so drop them; "next" rebuilds from the new one.
-  session.steps = [];
+  // Preserve completed work for unrelated items; a corrected destination needs a fresh claim.
+  const done = session.steps.filter((step) => step.done && step.itemId !== id);
+  const doneIds = new Set(done.map((step) => step.itemId));
+  session.steps = [...done, ...buildSteps(session.items, zones).filter((step) => !doneIds.has(step.itemId))]
+    .map((step, index) => ({ ...step, n: index + 1 }));
 
   return text(
     [
