@@ -8,7 +8,9 @@
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "test": "vitest"
+    "test": "vitest",
+    "typecheck": "tsc --noEmit",
+    "spike:perceptron": "tsx scripts/spike-perceptron.ts"
   },
   "dependencies": {
     "@google/genai": "^2.30.0",
