@@ -5,8 +5,9 @@ import { PREVIEW_CAPTION, previewPrompt, type PlanGroup, type ZoneRef } from "./
 import type { InboundMessage } from "./router.js";
 import { normalizePhoto } from "./vision/normalize.js";
 
-// Long enough for an image edit, short enough that it can't land after the user's next photo.
-const TIMEOUT_MS = 25_000;
+// Measured 17-24s on real photos, so 25s was cutting it far too fine. The call is fire-and-forget
+// after the plan has been delivered, so a generous timeout costs nothing but a late illustration.
+const TIMEOUT_MS = 45_000;
 const PREVIEW_MAX_SIDE = 768;
 
 /** PREVIEW=off turns the preview off; anything else leaves it on. */
