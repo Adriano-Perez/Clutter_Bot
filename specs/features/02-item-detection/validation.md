@@ -10,8 +10,9 @@
 3. Compare labels to the known item list.
 
 **Expected Result:** Overlay received in ≤ 12 s; numbered boxes for ≥ 7 of 8 items with correct labels; legend text lists them in number order.  
-**Measured latency:** ____ s (none) / ____ s (low)  
-**Status:** Pass / Fail
+**Actual Result (Sprint 0, `test/fixtures/tray-messy.jpg`, 768 px, spike script):** 12 items after cleanup: 4 pens, 2 paper, notebook, cable, charger, headphones, mug, keys. All 8 item types found.  
+**Measured latency:** 12.8 s items+zones wall time, items call 11.4–13.9 s across runs (none) / ~31 s (low, open detection)  
+**Status:** Pass
 
 ## Test Case: TC-DET-02
 **Related Requirement:** FR-DET-03  
@@ -21,7 +22,8 @@
 1. Inspect the overlay for zone outlines.
 
 **Expected Result:** Both bins are outlined (dashed) and lettered A and B; the open desk area may appear as a third zone.  
-**Status:** Pass / Fail
+**Actual Result (Sprint 0, same run):** Zones: 2 storage bins + pen cup. The mug was correctly not treated as a zone.  
+**Status:** Pass
 
 ## Test Case: TC-DET-03
 **Related Requirement:** FR-DET-07  
@@ -64,3 +66,7 @@
 
 **Expected Result:** Output is upright, longest side 1024 px, and boxes drawn on it align with the objects.  
 **Status:** Pass / Fail
+
+## Findings (Sprint 0)
+- **Open detection is not usable as-is.** Without categories, `/v1/detect` returns sentence-long labels, and reasoning `"low"` takes ~31 s. Production uses the fixed `LABEL_VOCAB` with reasoning `"none"`.
+- **Zones are boxes, not polygons.** Polygon zones from chat completions were unreliable (offset or degenerate shapes), so zones come from `/v1/detect` as pixel boxes (see FR-DET-03 and the design note).
