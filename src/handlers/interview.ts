@@ -24,6 +24,7 @@ const RULES = `Rules:
 - Items with usage "daily" go to zoneId "desk".
 - Paper and trash go to zoneId "toss".
 - Backpacks and clothes go to zoneId "off-desk".
+- Sticky notes and glasses go to zoneId "desk": they're wanted where they can be seen.
 - Cables go to the same zone as the charger.
 - Pens go to the pen cup zone if there is one.
 - Everything else goes to a storage bin zone.
@@ -66,6 +67,9 @@ export function fallbackPlan(items: Item[], zones: ZoneRef[]): Placement[] {
     if (i.label === "trash") return { itemId: i.id, zoneId: TOSS.id, reason: "it's trash" };
     if (i.label === "backpack" || i.label === "clothes")
       return { itemId: i.id, zoneId: OFF_DESK.id, reason: "too big for the desk bins" };
+    // Filing someone's notes or their glasses away is unhelpful, however tidy it looks.
+    if (i.label === "sticky note") return { itemId: i.id, zoneId: DESK.id, reason: "it's there to be read" };
+    if (i.label === "glasses") return { itemId: i.id, zoneId: DESK.id, reason: "so you can find them" };
     if (i.label === "pen" && penCup) return { itemId: i.id, zoneId: penCup.id, reason: "keeps pens together" };
     return { itemId: i.id, zoneId: bin.id, reason: "stored out of the way" };
   };

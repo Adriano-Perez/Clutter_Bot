@@ -54,6 +54,8 @@ const GENERAL_RULE: Record<string, string> = {
   charger: "A charger you use every day stays on the desk; otherwise it goes in a bin.",
   backpack: "Backpacks go off the desk entirely — they don't fit a desk bin.",
   clothes: "Clothes go off the desk entirely — they don't fit a desk bin.",
+  "sticky note": "Sticky notes stay on the desk — they're there to be read.",
+  glasses: "Glasses stay on the desk, where you'll find them.",
 };
 
 function generalRule(label: string): string {
