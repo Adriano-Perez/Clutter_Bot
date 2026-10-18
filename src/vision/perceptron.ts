@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 const DETECT_URL = "https://api.perceptron.inc/v1/detect";
-const TIMEOUT_MS = 20_000;
+const DEFAULT_TIMEOUT_MS = 20_000;
 
 const pointSchema = z.object({ x: z.number(), y: z.number() });
 
@@ -31,6 +31,7 @@ export type Detection = z.infer<typeof detectionSchema>;
 export interface DetectOptions {
   categories?: string[];
   reasoningEffort?: "none" | "low";
+  timeoutMs?: number;
 }
 
 export interface DetectResult {
@@ -56,7 +57,7 @@ export async function detect(imageDataUrl: string, options: DetectOptions = {}):
     throw new PerceptronError("PERCEPTRON_API_KEY is not set; add it to .env");
   }
 
-  const { categories, reasoningEffort = "none" } = options;
+  const { categories, reasoningEffort = "none", timeoutMs = DEFAULT_TIMEOUT_MS } = options;
   const badCategory = categories?.find((c) => c.includes(","));
   if (badCategory !== undefined) {
     throw new PerceptronError(`Perceptron categories cannot contain commas: "${badCategory}"`);
@@ -75,13 +76,13 @@ export async function detect(imageDataUrl: string, options: DetectOptions = {}):
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (err) {
     const ms = Math.round(performance.now() - start);
     console.log(`[latency] perceptron.detect ${ms}ms (failed)`);
     if (err instanceof DOMException && err.name === "TimeoutError") {
-      throw new PerceptronError(`Perceptron detect timed out after ${TIMEOUT_MS / 1000}s`);
+      throw new PerceptronError(`Perceptron detect timed out after ${timeoutMs / 1000}s`);
     }
     throw new PerceptronError(`Perceptron detect request failed: ${(err as Error).message}`);
   }
