@@ -1,13 +1,11 @@
 import { z } from "zod";
-import { DESK, OFF_DESK, TOSS, type ZoneRef } from "../plan.js";
+import { DESK, NEXT_STEP, OFF_DESK, TOSS, groupPlan, planMessage, type ZoneRef } from "../plan.js";
 import type { PhaseHandler } from "../router.js";
 import type { Item } from "../types.js";
 import { json } from "../llm/gemini.js";
 import { LABEL_VOCAB } from "../vision/labels.js";
 
 type Placement = { itemId: number; zoneId: string; reason: string };
-
-const MAX_LINES = 12;
 const MAX_REPLY_CHARS = 200;
 
 // Allow-list for user text sent to Gemini: item labels (longest first), 1–2 digit item numbers, "and", ",", "-".
@@ -119,21 +117,14 @@ export const interview: PhaseHandler = async (session, msg) => {
 
   const zones = session.zones.map(({ id, label }) => ({ id, label }));
   const placements = await plan(session.items, zones, msg.content.text);
-  const zoneName = (id: string) => {
-    const z = zones.find((z) => z.id === id);
-    if (z) return `${z.id} ${z.label}`;
-    return [DESK, TOSS, OFF_DESK].find((p) => p.id === id)?.label ?? id;
-  };
 
-  const lines: string[] = [];
   for (const p of placements) {
     const item = session.items.find((i) => i.id === p.itemId)!;
     item.destinationZoneId = p.zoneId;
     item.reason = p.reason;
-    lines.push(`${item.id} ${item.label} -> ${zoneName(p.zoneId)} (${p.reason})`);
   }
   session.phase = "planned";
 
-  const shown = lines.length > MAX_LINES ? [...lines.slice(0, MAX_LINES - 1), `…and ${lines.length - MAX_LINES + 1} more`] : lines;
-  return [{ type: "text", text: [...shown, "Put things away, then send me another photo and I'll check."].join("\n") }];
+  const text = [planMessage(groupPlan(session.items, zones)), "", NEXT_STEP].join("\n");
+  return [{ type: "text", text }];
 };
