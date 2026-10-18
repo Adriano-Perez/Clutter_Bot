@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import type { Item } from "../src/types.js";
 import type { Box } from "../src/vision/overlay.js";
 import { overlayItems } from "../src/handlers/planned.js";
-import { buildSummary, compareAfter } from "../src/verify/compare.js";
+import { buildSummary, compareAfter, isComplete, matchZones } from "../src/verify/compare.js";
 
+const CAVEAT = " I can't see inside closed bins, so I'm only counting what's visible.";
+const SUCCESS = "Visible items are where planned. Nice work.";
+const INCONCLUSIVE = "I can't confirm everything yet. Send the same view with the storage spots visible.";
 const GREEN = "#1DB954";
 const RED = "#E53935";
 
@@ -64,7 +67,7 @@ describe("compareAfter", () => {
 
     expect(c.keptOnDesk.map((i) => i.id)).toEqual([2]);
     expect(c.stillOut).toEqual([]);
-    expect(buildSummary(c)).toBe("Put away: charger. On the desk as planned: mug. Desk clear! Nice work.");
+    expect(buildSummary(c)).toBe("Put away: charger. On the desk as planned: mug. " + SUCCESS + CAVEAT);
   });
 
   it("skips the desk rule when there is no plan", () => {
@@ -73,9 +76,9 @@ describe("compareAfter", () => {
     expect(c.keptOnDesk).toEqual([]);
   });
 
-  it("says the desk is clear when nothing is still out", () => {
+  it("keeps missing items inconclusive even when nothing is still out", () => {
     const c = compareAfter([charger, keys], [{ label: "charger", box: [40, 330, 100, 400] }], [BIN]);
-    expect(buildSummary(c)).toBe("Put away: charger. Can't see: keys (3). Desk clear! Nice work.");
+    expect(buildSummary(c)).toBe("Put away: charger. Can't see: keys (3). " + INCONCLUSIVE + CAVEAT);
   });
 
   it("lists a missing toss item as tossed, not can't see, and still says desk clear", () => {
@@ -86,7 +89,7 @@ describe("compareAfter", () => {
 
     expect(c.tossed).toEqual([paper]);
     expect(c.cantSee).toEqual([]);
-    expect(buildSummary(c)).toBe("Put away: charger. Tossed: paper. Desk clear! Nice work.");
+    expect(buildSummary(c)).toBe("Put away: charger. No longer visible (planned to toss): paper. " + SUCCESS + CAVEAT);
   });
 
   it("ignores an in-zone detection that matches a pre-stored bin label", () => {
@@ -168,11 +171,56 @@ describe("overlayItems", () => {
 
     expect(c.movedOff).toEqual([backpack]);
     expect(c.tossed).toEqual([trash]);
-    expect(buildSummary(c)).toBe("Put away: charger. Tossed: trash. Moved off the desk: backpack. Desk clear! Nice work.");
+    expect(buildSummary(c)).toBe("Put away: charger. No longer visible (planned to toss): trash. No longer visible (planned to take away): backpack. " + SUCCESS + CAVEAT);
   });
 
   it("pluralizes trash readably", () => {
     const t = [item(6, "trash", [250, 20, 290, 90], "toss"), item(7, "trash", [300, 20, 340, 90], "toss")];
-    expect(buildSummary(compareAfter(t, [], [BIN]))).toBe("Tossed: 2 pieces of trash. Desk clear! Nice work.");
+    expect(buildSummary(compareAfter(t, [], [BIN]))).toBe("No longer visible (planned to toss): 2 pieces of trash. " + INCONCLUSIVE + CAVEAT);
+  });
+});
+
+
+describe("verification safety", () => {
+  it("never completes an empty or partially missing result", () => {
+    const c = compareAfter([item(1, "charger", charger.box, "A")], [], [BIN]);
+    expect(isComplete(c)).toBe(false);
+    expect(buildSummary(c)).not.toContain(SUCCESS);
+    expect(c.cantSee.map((i) => i.id)).toEqual([1]);
+  });
+
+  it.each(["kitchen", "toss", "off-desk", "B", "desk"])("rejects a visible item in bin A when planned for %s", (destination) => {
+    const c = compareAfter([item(1, "mug", mug.box, destination)],
+      [{ label: "mug", box: [40, 330, 100, 400] }], [{ id: "A", box: BIN }]);
+    expect(c.putAway).toEqual([]);
+    expect(c.stillOut.map((i) => i.id)).toEqual([1]);
+    expect(c.detections[0]?.status).toBe("stillOut");
+    expect(isComplete(c)).toBe(false);
+  });
+
+  it("reports missing kitchen items as no longer visible without claiming the destination", () => {
+    const c = compareAfter([item(1, "mug", mug.box, "kitchen")], [], []);
+    expect(c.movedOff).toHaveLength(1);
+    expect(buildSummary(c)).toContain("No longer visible (planned to take away): mug.");
+    expect(isComplete(c)).toBe(false);
+  });
+
+  it("preserves before letters when an earlier bin is missed in the after photo", () => {
+    const before = [
+      { id: "A", label: "storage bin", box: [0, 0, 100, 100] as Box, polygon: [] },
+      { id: "B", label: "storage bin", box: [300, 0, 400, 100] as Box, polygon: [] },
+    ];
+    const after = [{ ...before[1]!, id: "A", box: [302, 2, 402, 102] as Box }];
+    const matched = matchZones(before, after);
+    expect(matched.map((z) => z.id)).toEqual(["B"]);
+    const c = compareAfter([item(1, "charger", charger.box, "A")],
+      [{ label: "charger", box: [320, 20, 360, 60] }], matched);
+    expect(c.stillOut).toHaveLength(1);
+  });
+
+  it("does not reuse one zone for two original zones or match an unrelated location", () => {
+    const zone = { id: "A", label: "box", box: [0, 0, 100, 100] as Box, polygon: [] };
+    expect(matchZones([zone, { ...zone, id: "B" }], [zone])).toHaveLength(1);
+    expect(matchZones([zone], [{ ...zone, box: [300, 300, 400, 400] }])).toEqual([]);
   });
 });

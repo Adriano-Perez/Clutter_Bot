@@ -110,9 +110,11 @@ export function planPage(session: Session, basePath: string): string {
     parts.push(
       `<h2>How it went</h2>`,
       `<figure><img src="${escapeHtml(basePath)}/photo/after" alt="Your desk after tidying, with each item marked green or red">`,
-      `<figcaption>Green went away. Red is still out.</figcaption></figure>`,
+      `<figcaption>Green circles match the plan. Red squares still need attention.</figcaption></figure>`,
     );
   }
+
+  if (session.verificationSummary) parts.push(`<p>${escapeHtml(session.verificationSummary)}</p>`);
 
   parts.push(`<p class="note">${escapeHtml(HONESTY)}</p>`);
   return layout("Your desk · ClutterBot", parts.join("\n"));

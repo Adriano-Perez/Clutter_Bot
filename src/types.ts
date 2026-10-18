@@ -30,5 +30,6 @@ export interface Session {
   items: Item[]; zones: Zone[];
   interview: { q: string; a?: string }[];
   steps: Step[]; previewImage?: string;
+  verificationSummary?: string;
   createdAt: string; updatedAt: string;
 }
