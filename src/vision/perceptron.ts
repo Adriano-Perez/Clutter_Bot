@@ -7,8 +7,9 @@ const pointSchema = z.object({ x: z.number(), y: z.number() });
 
 const detectionSchema = z.object({
   mention: z.string(),
-  point: pointSchema.nullable(),
-  point_box: z.object({ top_left: pointSchema, bottom_right: pointSchema }).nullable(),
+  // The API omits whichever of these the requested output format doesn't produce.
+  point: pointSchema.nullish(),
+  point_box: z.object({ top_left: pointSchema, bottom_right: pointSchema }).nullish(),
 });
 
 const detectResponseSchema = z.object({
@@ -45,6 +46,7 @@ export class PerceptronError extends Error {
     message: string,
     readonly status?: number,
     readonly code?: string,
+    readonly raw?: unknown, // response body, set when it failed validation
   ) {
     super(message);
     this.name = "PerceptronError";
@@ -100,7 +102,12 @@ export async function detect(imageDataUrl: string, options: DetectOptions = {}):
 
   const parsed = detectResponseSchema.safeParse(json);
   if (!parsed.success) {
-    throw new PerceptronError(`Perceptron detect returned an unexpected response: ${parsed.error.message}`);
+    throw new PerceptronError(
+      `Perceptron detect returned an unexpected response: ${parsed.error.message}`,
+      res.status,
+      undefined,
+      json,
+    );
   }
 
   return { detections: parsed.data.detections, finishReason: parsed.data.finish_reason, ms };

@@ -6,7 +6,7 @@ import path from "node:path";
 import { LABEL_VOCAB } from "../src/vision/labels.js";
 import { normalizePhoto } from "../src/vision/normalize.js";
 import { numberItems, renderDetections, type Box } from "../src/vision/overlay.js";
-import { detect, type DetectOptions, type DetectResult } from "../src/vision/perceptron.js";
+import { detect, PerceptronError, type DetectOptions, type DetectResult } from "../src/vision/perceptron.js";
 
 const OUT_DIR = "out";
 
@@ -47,7 +47,9 @@ async function main(): Promise<void> {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.error(`failed: ${message}`);
-      await writeFile(outFile, JSON.stringify({ error: message }, null, 2));
+      const raw = err instanceof PerceptronError ? err.raw : undefined;
+      const saved = raw === undefined ? { error: message } : { error: message, raw };
+      await writeFile(outFile, JSON.stringify(saved, null, 2));
       timings.push({ call: name, items: "-", ms: "-", finish: "error" });
     }
     console.log(`saved ${outFile}`);

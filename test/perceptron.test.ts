@@ -61,6 +61,36 @@ describe("detect", () => {
     expect(logged).not.toContain(KEY);
   });
 
+  it("accepts detections that omit the point key", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        jsonResponse(200, {
+          detections: [
+            { mention: "pen", point_box: { top_left: { x: 5, y: 6 }, bottom_right: { x: 50, y: 60 } } },
+          ],
+          finish_reason: "complete",
+        }),
+      ),
+    );
+
+    const result = await detect(IMAGE);
+
+    expect(result.detections).toHaveLength(1);
+    expect(result.detections[0]?.point).toBeUndefined();
+    expect(result.detections[0]?.point_box?.top_left).toEqual({ x: 5, y: 6 });
+  });
+
+  it("puts the raw body on the error when validation fails", async () => {
+    const body = { detections: [{ mention: 42 }], finish_reason: "complete" };
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse(200, body)));
+
+    const err = await detect(IMAGE).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(PerceptronError);
+    expect((err as PerceptronError).raw).toEqual(body);
+  });
+
   it("throws a PerceptronError with status and code on 401", async () => {
     vi.stubGlobal(
       "fetch",
