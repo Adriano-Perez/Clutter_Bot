@@ -49,8 +49,10 @@ export type VerificationZone = { id: string; box: Box };
 
 /** Match storage spots geometrically, keeping the BEFORE letters even if a detection disappears. */
 export function matchZones(before: readonly Zone[], after: readonly Zone[]): VerificationZone[] {
+  const family = (label: string) => ["storage bin", "box", "tray"].includes(label) ? "container" :
+    ["bookshelf", "shelf"].includes(label) ? "shelf" : label;
   const candidates = before.flatMap((a) => a.box ? after.flatMap((b) =>
-    b.box && a.label === b.label && iou(a.box!, b.box) >= 0.3
+    b.box && family(a.label) === family(b.label) && iou(a.box!, b.box) >= 0.3
       ? [{ id: a.id, box: b.box, score: iou(a.box!, b.box) }] : [],
   ) : []).sort((a, b) => b.score - a.score);
   const usedBefore = new Set<string>();

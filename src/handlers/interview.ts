@@ -124,6 +124,6 @@ export const interview: PhaseHandler = async (session, msg) => {
 
   // Fire and forget. The plan is already delivered, and the router has to save the session now
   // rather than 25s from now, or the user's next photo would load a session still in "interview".
-  void sendPreview(session.beforePhoto, groups, zones, msg.send);
+  void sendPreview(session.beforePhoto, structuredClone(groups), zones, msg.send, msg.isCurrent);
   return [];
 };

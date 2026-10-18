@@ -152,7 +152,7 @@ describe("prompt injection and personal data", () => {
         "Put it all away, then send me another photo and I'll check.",
       ].join("\n"),
     );
-    expect(sendPreview).toHaveBeenCalledWith("data/media/0142/1.jpg", expect.any(Array), zones, send);
+    expect(sendPreview).toHaveBeenCalledWith("data/media/0142/1.jpg", expect.any(Array), zones, send, undefined);
   });
 
   it("uses the fallback plan when Gemini output fails validation", async () => {
@@ -188,4 +188,10 @@ describe("model placement guardrails", () => {
     expect(completePlan([{ itemId: 1, zoneId: "A", reason: "r" }], [item(1, "charger")],
       [{ id: "A", label: "storage bin", full: true }])[0]?.zoneId).toBe("desk");
   });
+});
+
+
+it("does not use a pen cup as generic storage for a laptop or charger", () => {
+  expect(fallbackPlan([item(1, "laptop"), item(2, "charger")], [{ id: "A", label: "pen cup" }])
+    .map((p) => p.zoneId)).toEqual(["desk", "desk"]);
 });

@@ -121,7 +121,7 @@ test("a failed event does not poison a sender's queue", async () => {
   const handler = vi.fn().mockRejectedValueOnce(new Error("broken image")).mockResolvedValueOnce([]);
   const router = new MessageRouter(store, { awaiting_photo: handler });
   const msg = (eventId: string): InboundMessage => ({ eventId, sender: "alice", content: { type: "other" }, send: async () => {} });
-  await expect(router.route(msg("bad"))).rejects.toThrow("broken image");
+  await expect(router.route(msg("bad"))).resolves.toBeUndefined();
   await router.route(msg("good"));
   expect(handler).toHaveBeenCalledTimes(2);
 });

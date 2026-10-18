@@ -146,3 +146,17 @@ describe("sendPreview", () => {
     expect(previewEnabled()).toBe(true);
   });
 });
+
+
+it("drops a late preview when its session or plan has changed", async () => {
+  const send = vi.fn(async (_reply: Reply) => {});
+  vi.mocked(editImage).mockResolvedValue({ png: Buffer.from("unused"), ms: 1000 });
+  expect(await sendPreview(await stagePhoto(), groups, zones, send, () => false)).toBe(false);
+  expect(send).not.toHaveBeenCalled();
+  vi.mocked(editImage).mockReset();
+});
+
+it("removes kitchen-bound crockery in the illustration prompt", () => {
+  const mug = item(1, "mug", "kitchen", "needs washing");
+  expect(previewInstructions(groupPlan([mug], []), [])).toEqual(["Remove the mug from the desk completely."]);
+});

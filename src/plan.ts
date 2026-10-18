@@ -48,7 +48,7 @@ export function fallbackPlan(items: Item[], zones: ZoneRef[]): Placement[] {
   const penCup = prefer("pen cup");
   const wardrobe = prefer("closet", "dresser", "laundry basket");
   const shelf = prefer("bookshelf", "shelf");
-  const bin = prefer("storage bin", "box", "drawer", "shelf", "bookshelf", "dresser", "closet") ?? zones[0] ?? DESK;
+  const bin = prefer("storage bin", "box", "drawer", "shelf", "bookshelf", "dresser", "closet", "tray", "nightstand") ?? DESK;
 
   const place = (i: Item): Placement => {
     if (i.usage === "daily") return { itemId: i.id, zoneId: DESK.id, reason: "you use it every day" };
@@ -224,7 +224,8 @@ export function replanAwayFrom(
   isDone: (itemId: number) => boolean,
 ): { moved: Item[]; to: ZoneRef } {
   const alternatives = zones.filter((z) => z.id !== blockedZoneId && !z.full);
-  const to = alternatives.find((z) => z.label === "storage bin") ?? alternatives[0] ?? DESK;
+  const to = alternatives.find((z) => z.label === "storage bin") ??
+    alternatives.find((z) => ["box", "drawer", "tray", "shelf", "bookshelf", "closet", "dresser", "nightstand"].includes(z.label)) ?? DESK;
 
   const moved = items.filter((i) => i.destinationZoneId === blockedZoneId && !isDone(i.id));
   for (const item of moved) {
