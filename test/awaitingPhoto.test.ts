@@ -60,6 +60,7 @@ function detection(overrides: Partial<DetectPhotoResult> = {}): DetectPhotoResul
     zones: [{ id: "A", label: "storage bin", polygon: [[0, 0], [50, 0], [50, 50], [0, 50]], box: [0, 0, 50, 50] }],
     legend: "I see 2 things: 1 charger, 2 pen\nStorage spots: A storage bin",
     ms: 100,
+    preStored: [],
     debug: {} as DetectPhotoResult["debug"],
     ...overrides,
   };
@@ -96,6 +97,7 @@ describe("awaitingPhoto", () => {
     expect(session.phase).toBe("interview");
     expect(session.items).toBe(result.items);
     expect(session.zones).toBe(result.zones);
+    expect(session.preStored).toBe(result.preStored);
     expect(session.beforePhoto).toBe(path.join(mediaDir, "1700000000000.jpg"));
   });
 

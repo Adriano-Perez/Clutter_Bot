@@ -50,3 +50,29 @@ test("ping replies pong without dispatching", async () => {
   expect(awaiting).not.toHaveBeenCalled();
   expect(sent).toEqual([{ type: "text", text: "pong" }]);
 });
+
+test("start over replaces the session with a fresh one", async () => {
+  const { router, store, sent, msg } = setup();
+  await router.route(msg("e1"));
+  const before = store.get("+12065550142")!;
+  store.save({ ...before, phase: "planned", afterPhotos: ["after.jpg"], beforePhoto: "before.jpg" });
+
+  await router.route(msg("e2", "  Start Over "));
+
+  const after = store.get("+12065550142")!;
+  expect(after.phase).toBe("awaiting_photo");
+  expect(after.id).not.toBe(before.id);
+  expect(after.afterPhotos).toEqual([]);
+  expect(after.beforePhoto).toBeUndefined();
+  expect(sent.at(-1)).toEqual({ type: "text", text: "Fresh start. Send me a photo of your desk." });
+});
+
+test("reset and restart also start over", async () => {
+  const { router, store, msg } = setup();
+  await router.route(msg("e1"));
+  for (const [i, word] of ["RESET", "restart"].entries()) {
+    store.save({ ...store.get("+12065550142")!, phase: "complete" });
+    await router.route(msg(`r${i}`, word));
+    expect(store.get("+12065550142")!.phase).toBe("awaiting_photo");
+  }
+});

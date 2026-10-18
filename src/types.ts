@@ -26,6 +26,7 @@ export interface Session {
   userHandle: string;          // iMessage sender, normalized E.164 or Apple ID email
   phase: "awaiting_photo" | "interview" | "planned" | "guiding" | "verifying" | "complete";
   beforePhoto?: string; afterPhotos: string[];
+  preStored?: { label: string; box: [number, number, number, number] }[];  // already in a bin in the before photo
   items: Item[]; zones: Zone[];
   interview: { q: string; a?: string }[];
   steps: Step[]; previewImage?: string;

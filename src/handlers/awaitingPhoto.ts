@@ -35,6 +35,7 @@ export const awaitingPhoto: PhaseHandler = async (session, msg) => {
   // FR-DET-05: numbered overlay + legend, then start the interview.
   session.items = result.items;
   session.zones = result.zones;
+  session.preStored = result.preStored;
   session.phase = "interview";
   return [
     { type: "image", path: overlayPath },

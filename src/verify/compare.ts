@@ -1,22 +1,29 @@
 import type { Item } from "../types.js";
-import { fractionInside } from "../vision/cleanup.js";
+import { fractionInside, iou } from "../vision/cleanup.js";
 import type { Box } from "../vision/overlay.js";
 
 const INSIDE_ZONE = 0.7; // share of a box inside a zone box to count as stored
+const PRE_STORED_IOU = 0.5; // same spot as something that was already in a bin before
 const DESK = "desk"; // destinationZoneId the interview plan uses for keep-on-desk items
+const TOSS = "toss"; // destinationZoneId the interview plan uses for things to throw away
+
+export type DetectionStatus = "putAway" | "keptOnDesk" | "stillOut" | "unmatched";
 
 export interface AfterDetection {
   label: string;
   box: Box;
   inZone: boolean;
+  status: DetectionStatus;
+  itemId?: number; // the original item this detection was matched to
 }
 
 export interface Comparison {
   putAway: Item[];
   stillOut: Item[];
   keptOnDesk: Item[]; // still out, but the plan says they belong on the desk
+  tossed: Item[]; // planned for "toss" and no longer seen
   cantSee: Item[];
-  detections: AfterDetection[]; // after-photo boxes, for the green/red overlay
+  detections: AfterDetection[]; // after-photo boxes, each with the status of its matched item
 }
 
 function center([x1, y1, x2, y2]: Box): [number, number] {
@@ -37,44 +44,56 @@ function hasPlan(items: readonly Item[]): boolean {
 /**
  * Compares the before items with what the after photo shows, per label:
  * still-out detections claim the nearest original items first, then in-zone detections count as
- * put away, and anything left over is "can't see". A missing item is never counted as put away.
+ * put away, and anything left over is "tossed" (if planned for toss) or "can't see".
+ * A missing item is never counted as put away. In-zone detections that match something already
+ * stored in the before photo (e.g. a label taped inside a bin) are ignored.
  */
 export function compareAfter(
   original: readonly Item[],
   detected: readonly { label: string; box: Box }[],
   zoneBoxes: readonly Box[],
+  { preStored = [] }: { preStored?: readonly { label: string; box: Box }[] } = {},
 ): Comparison {
-  const detections = detected.map((d) => ({
-    ...d,
+  const detections: AfterDetection[] = detected.map((d) => ({
+    label: d.label,
+    box: d.box,
     inZone: zoneBoxes.some((z) => fractionInside(d.box, z) >= INSIDE_ZONE),
+    status: "unmatched",
   }));
+  const isPreStored = (d: AfterDetection) =>
+    d.inZone && preStored.some((p) => p.label === d.label && iou(p.box, d.box) >= PRE_STORED_IOU);
   const deskRule = hasPlan(original);
 
-  const result: Comparison = { putAway: [], stillOut: [], keptOnDesk: [], cantSee: [], detections };
+  const result: Comparison = { putAway: [], stillOut: [], keptOnDesk: [], tossed: [], cantSee: [], detections };
   const labels = [...new Set(original.map((i) => i.label))];
 
   for (const label of labels) {
     const pending = original.filter((i) => i.label === label);
     const out = detections.filter((d) => d.label === label && !d.inZone);
-    let stored = detections.filter((d) => d.label === label && d.inZone).length;
+    const stored = detections.filter((d) => d.label === label && d.inZone && !isPreStored(d));
 
     for (const d of out) {
       if (pending.length === 0) break;
       pending.sort((a, b) => distance(a.box, d.box) - distance(b.box, d.box));
       const item = pending.shift()!;
-      if (deskRule && item.destinationZoneId === DESK) result.keptOnDesk.push(item);
-      else result.stillOut.push(item);
+      const onDesk = deskRule && item.destinationZoneId === DESK;
+      (onDesk ? result.keptOnDesk : result.stillOut).push(item);
+      d.status = onDesk ? "keptOnDesk" : "stillOut";
+      d.itemId = item.id;
     }
     pending.sort((a, b) => a.id - b.id);
     for (const item of pending) {
-      if (stored > 0) {
-        stored--;
+      const d = stored.shift();
+      if (d) {
         result.putAway.push(item);
-      } else result.cantSee.push(item);
+        d.status = "putAway";
+        d.itemId = item.id;
+      } else if (item.destinationZoneId === TOSS) result.tossed.push(item);
+      else result.cantSee.push(item);
     }
   }
 
-  for (const list of [result.putAway, result.stillOut, result.keptOnDesk, result.cantSee]) {
+  for (const list of [result.putAway, result.stillOut, result.keptOnDesk, result.tossed, result.cantSee]) {
     list.sort((a, b) => a.id - b.id);
   }
   return result;
@@ -99,6 +118,7 @@ function idList(items: readonly Item[]): string {
 export function buildSummary(c: Comparison): string {
   const parts: string[] = [];
   if (c.putAway.length > 0) parts.push(`Put away: ${countList(c.putAway)}.`);
+  if (c.tossed.length > 0) parts.push(`Tossed: ${countList(c.tossed)}.`);
   if (c.keptOnDesk.length > 0) parts.push(`On the desk as planned: ${countList(c.keptOnDesk)}.`);
   if (c.stillOut.length > 0) parts.push(`Still out: ${idList(c.stillOut)}.`);
   if (c.cantSee.length > 0) parts.push(`Can't see: ${idList(c.cantSee)}.`);
