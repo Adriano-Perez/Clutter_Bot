@@ -14,6 +14,7 @@ it("checks the original and edited images before returning a preview", async () 
   json.mockResolvedValue({ value: { sameLayout: true, furniturePreserved: true } });
   const result = await editImage(photo, "tidy the loose objects");
   expect((await sharp(result.png).metadata()).format).toBe("png");
+  expect((await sharp(result.png).metadata()).height).toBeGreaterThan(10);
   const opts = json.mock.calls[0]![3];
   expect(opts.images).toHaveLength(2);
   expect(opts.images[0].mimeType).toBe("image/jpeg");

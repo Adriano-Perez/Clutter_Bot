@@ -251,7 +251,7 @@ export function planLink(sessionId: string): string | undefined {
 }
 
 /** Always sent with the preview, so nobody mistakes it for a photo of their actual desk. */
-export const PREVIEW_CAPTION = "Illustration, not a photo — roughly how your desk could look.";
+export const PREVIEW_CAPTION = "Approximate illustration, not a photo — room, furniture and other details may differ. Follow the numbered plan.";
 
 // "the charger, cable and pen"
 function listLabels(items: readonly Item[]): string {
