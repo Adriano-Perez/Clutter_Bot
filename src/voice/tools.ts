@@ -70,7 +70,7 @@ function planSummary(session: Session) {
  *
  * Guarded by TOOL_SHARED_SECRET as a bearer token. Without that variable set, every call is
  * refused: an unauthenticated endpoint that returns someone's desk contents by phone number is
- * exactly the kind of thing VEYZL flagged us for once already.
+ * exactly the kind of endpoint that leaks data by default.
  */
 export function voiceTools(store: SessionStore): Hono {
   const app = new Hono();

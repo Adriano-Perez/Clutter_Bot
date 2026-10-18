@@ -27,7 +27,6 @@
 - **Vitest** for unit tests: answer parser, plan validator, ledger state transitions, overlay geometry, item matching.
 - **Recorded fixtures** in `test/fixtures/`: 3 tray photos (messy, half-done, done), plus saved Perceptron and Gemini JSON responses, so tests run offline and fast.
 - **Manual end-to-end test cases** in each feature's `validation.md`, run on a real iPhone and a real phone call.
-- **VEYZL** PR audits as the review gate on every merge to `main`.
 - **Latency log**: each external call is timed and written to stdout as `[latency] perceptron.detect 2140ms`.
 
 ## Constraints

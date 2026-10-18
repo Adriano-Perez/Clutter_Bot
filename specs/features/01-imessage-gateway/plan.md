@@ -14,7 +14,7 @@ Owner: **B** (Adriano). Phase 0 → Phase 1.
 - [ ] Immediate acknowledgement before handler work (NFR-GW-01)
 - [ ] Log masking helper; 429 backoff
 - [ ] Unit tests: router dispatch, command parsing, dedupe
-- [ ] Open PR → VEYZL audit → address findings → merge
+- [ ] Open PR → review → merge
 
 ## Files to Create or Modify
 - `src/photon/client.ts`: Photon beta API wrapper

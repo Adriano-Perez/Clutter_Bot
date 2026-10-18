@@ -12,7 +12,7 @@ Owner: **B** (Adriano), with **A** reviewing the Gemini schema. Phase 2.
 - [ ] `InterviewHandler` state transitions; on completion call `Planner.build()` (feature 04)
 - [ ] Fixture `test/fixtures/answers.json` with 10 scripted answers + expected IDs
 - [ ] Unit tests: local parser, transitions, ≥ 9/10 fixture accuracy (Gemini calls mocked from saved responses)
-- [ ] PR → VEYZL → merge
+- [ ] PR → review → merge
 
 ## Files to Create or Modify
 - `src/handlers/interview.ts`: `InterviewHandler`, `QuestionBank`

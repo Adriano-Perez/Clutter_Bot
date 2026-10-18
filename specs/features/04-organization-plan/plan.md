@@ -14,7 +14,7 @@ Owner: **A** (Daniel). Phase 0 spike (Gemini text + image) → Phase 2 → Phase
 - [ ] `PreviewGenerator` (async, 30 s timeout, "Illustration" caption)
 - [ ] `GuidanceService.reportBlocker` + `Planner.replan` (undone steps only) → Phase 3
 - [ ] Unit tests: validator rules, replan keeps done steps fixed, formatter line limit
-- [ ] PR → VEYZL → merge
+- [ ] PR → review → merge
 
 ## Files to Create or Modify
 - `src/plan/planner.ts`: `Planner`, prompt, schema
