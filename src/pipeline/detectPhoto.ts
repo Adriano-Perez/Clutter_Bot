@@ -1,12 +1,13 @@
 import type { Item, Zone } from "../types.js";
-import { cleanDetections, type LabeledBox } from "../vision/cleanup.js";
+import { cleanDetections, fractionInside, type LabeledBox } from "../vision/cleanup.js";
 import { LABEL_VOCAB } from "../vision/labels.js";
 import { normalizePhoto } from "../vision/normalize.js";
 import { numberItems, renderDetections, type Box } from "../vision/overlay.js";
 import { detect, type DetectResult } from "../vision/perceptron.js";
 import { detectZones, withoutMugZones, type Zone as BoxZone } from "../vision/zones.js";
 
-const MAX_SIDE = 768;
+export const DETECT_MAX_SIDE = 768;
+const INSIDE_ZONE = 0.7; // share of an item's box inside a zone box
 
 export const NO_ITEMS_LEGEND =
   "I couldn't make out any items. Try again with more light, from directly above.";
@@ -67,7 +68,14 @@ export function buildLegend(
 // Throws if the items call fails; a failed zones call only skips the container rule.
 export async function detectPhoto(
   input: Buffer | Uint8Array,
-  { maxSide = MAX_SIDE }: { maxSide?: number } = {},
+  {
+    maxSide = DETECT_MAX_SIDE,
+    dropInsideZones = false,
+  }: {
+    maxSide?: number;
+    // Before photo only: items already inside a bin (e.g. labels taped inside) aren't clutter.
+    dropInsideZones?: boolean;
+  } = {},
 ): Promise<DetectPhotoResult> {
   const start = performance.now();
   const photo = await normalizePhoto(Buffer.isBuffer(input) ? input : Buffer.from(input), { maxSide });
@@ -88,7 +96,10 @@ export async function detectPhoto(
   const rawItems = toBoxes(itemsResult);
   const boxZones = withoutMugZones(zonesOutcome.zones ?? [], rawItems);
   const cleaned = cleanDetections(rawItems, boxZones, photo.width);
-  const numbered = numberItems(cleaned);
+  const loose = dropInsideZones
+    ? cleaned.filter((d) => !boxZones.some((z) => fractionInside(d.box, z.box) >= INSIDE_ZONE))
+    : cleaned;
+  const numbered = numberItems(loose);
 
   const at = new Date().toISOString();
   const items: Item[] = numbered.map(({ id, label, box }) => ({

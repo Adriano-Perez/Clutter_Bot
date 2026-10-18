@@ -19,7 +19,7 @@ export const awaitingPhoto: PhaseHandler = async (session, msg) => {
   // Detect on the saved file: HEIC uploads have already been converted to JPEG there.
   let result;
   try {
-    result = await detectPhoto(await readFile(file));
+    result = await detectPhoto(await readFile(file), { dropInsideZones: true });
   } catch (err) {
     console.log(`handler: detection failed for ${mask(msg.sender)}: ${(err as Error).message}`);
     return [{ type: "text", text: DETECTION_FAILED }];
