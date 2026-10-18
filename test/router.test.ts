@@ -125,3 +125,21 @@ test("a failed event does not poison a sender's queue", async () => {
   await router.route(msg("good"));
   expect(handler).toHaveBeenCalledTimes(2);
 });
+
+
+test("keeps the user informed during a slow room-photo call", async () => {
+  vi.useFakeTimers();
+  try {
+    const { router, awaiting, msg, sent } = setup();
+    let release!: (value: Reply[]) => void;
+    awaiting.mockImplementation(() => new Promise((resolve) => { release = resolve; }));
+    const photo = msg("slow-photo");
+    photo.content = { type: "attachment", mimeType: "image/jpeg", read: async () => new Uint8Array() };
+    const work = router.route(photo);
+    await vi.advanceTimersByTimeAsync(15000);
+    expect(sent).toContainEqual({ type: "text", text: "Still checking — a busy room can take up to 45 seconds." });
+    release([{ type: "text", text: "ready" }]);
+    await work;
+    expect(sent.at(-1)).toEqual({ type: "text", text: "ready" });
+  } finally { vi.useRealTimers(); }
+});

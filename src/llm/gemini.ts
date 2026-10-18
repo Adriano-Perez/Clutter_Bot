@@ -37,6 +37,7 @@ export interface JsonOptions {
   models?: string[];
   images?: readonly { data: string; mimeType: string }[];
   thinkingLevel?: ThinkingLevel;
+  perAttemptMs?: number;
 }
 
 async function attempt<T>(
@@ -122,7 +123,7 @@ export async function json<T>(
     }
 
     try {
-      return await attempt(model, prompt, jsonSchema, validator, remaining, opts.images, opts.thinkingLevel);
+      return await attempt(model, prompt, jsonSchema, validator, Math.min(remaining, opts.perAttemptMs ?? remaining), opts.images, opts.thinkingLevel);
     } catch (err) {
       lastError = err;
       const next = models[i + 1];

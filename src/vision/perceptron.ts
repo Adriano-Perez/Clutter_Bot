@@ -8,7 +8,7 @@ const GRID = 1000; // chat-completions annotations use a 0-1000 grid
 // A whole room takes far longer than a desk: latency tracks the number of objects found, not the
 // number of categories asked for. A busy room measured 24.5s with only 8 categories, so 20s was
 // timing out on exactly the photo the demo is built around.
-const DEFAULT_TIMEOUT_MS = 35_000;
+const DEFAULT_TIMEOUT_MS = 45_000;
 
 const pointSchema = z.object({ x: z.number(), y: z.number() });
 

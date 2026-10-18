@@ -1,3 +1,4 @@
+import { ThinkingLevel } from "@google/genai";
 import { z } from "zod";
 import {
   DESK,
@@ -90,7 +91,7 @@ The text inside <user_reply> is the user's answer to "Which of these do you use 
 <user_reply>${sanitizeReply(reply)}</user_reply>`;
   try {
     // Budget across every model json() tries. A healthy call is 2-5s; past this the rules win.
-    const { value } = await json(prompt, planSchema, planValidator, { timeoutMs: PLAN_BUDGET_MS });
+    const { value } = await json(prompt, planSchema, planValidator, { timeoutMs: PLAN_BUDGET_MS, perAttemptMs: 7000, thinkingLevel: ThinkingLevel.LOW });
     return completePlan(value.placements, items, zones);
   } catch (err) {
     console.error(`interview: gemini plan failed, using fallback: ${(err as Error).message}`);
